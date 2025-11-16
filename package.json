@@ -1,0 +1,23 @@
+{
+  "name": "ismcts-ai",
+  "version": "1.0.0",
+  "description": "Information Set Monte Carlo Tree Search AI for Pokemon TCG Pocket",
+  "type": "module",
+  "scripts": {
+    "test": "pnpm tsc --project tsconfig.spec.json && pnpm mocha --recursive ./spec --extension spec.ts",
+    "build": "pnpm tsc"
+  },
+  "dependencies": {
+    "@cards-ts/pocket-tcg": "file:../pocket-tcg",
+    "@cards-ts/core": "^0.8.1"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.10.0",
+    "chai": "^5.3.3",
+    "mocha": "^10.8.2",
+    "ts-node": "^10.9.2",
+    "typescript": "5.7.2"
+  }
+}
