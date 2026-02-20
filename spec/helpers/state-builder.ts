@@ -1,0 +1,380 @@
+import { ControllerState } from '@cards-ts/core';
+import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
+import { EnergyDictionary, AttachableEnergyType } from '@cards-ts/pocket-tcg/dist/controllers/energy-controller.js';
+import { GameCard } from '@cards-ts/pocket-tcg/dist/controllers/card-types.js';
+import { StatusEffectType } from '@cards-ts/pocket-tcg/dist/controllers/status-effect-controller.js';
+
+// Partial energy dictionary for test convenience
+type PartialEnergyDict = Partial<Record<AttachableEnergyType, number>>;
+
+// Helper function to create empty energy dictionary
+const createEmptyEnergyDict = (): EnergyDictionary => ({
+    grass: 0, fire: 0, water: 0, lightning: 0,
+    psychic: 0, fighting: 0, darkness: 0, metal: 0,
+});
+
+/*
+ * Helper function to validate creature instance exists
+ * Checks if any card has matching fieldInstanceId (persistent ID) or
+ * if any card in any evolution stack has matching instanceId (form-specific ID)
+ * This is needed because energy/tools are attached using the fieldInstanceId,
+ * but we need to find the card even after it evolves to new forms
+ */
+const validateCreatureInstance = (state: ControllerState<Controllers>, creatureInstanceId: string): boolean => {
+    // Check field instance IDs first (primary ID for attachments)
+    const matchesFieldId = state.field.creatures[0]?.some(p => p.fieldInstanceId === creatureInstanceId)
+                           || state.field.creatures[1]?.some(p => p.fieldInstanceId === creatureInstanceId);
+    
+    if (matchesFieldId) {
+        return true; 
+    }
+    
+    // Also check individual form instance IDs in evolution stacks (for backward compatibility)
+    return state.field.creatures[0]?.some(p => p.evolutionStack.some(card => card.instanceId === creatureInstanceId),
+    )
+           || state.field.creatures[1]?.some(p => p.evolutionStack.some(card => card.instanceId === creatureInstanceId),
+           );
+};
+
+export class StateBuilder {
+    // TODO: StateBuilder should use CreatureRepository for validation of creature IDs and stats
+    /**
+     * Create action phase state with customization closure
+     * @param customizer Optional function to modify the default state
+     */
+    static createActionPhaseState(customizer?: (state: ControllerState<Controllers>) => void) {
+        // Create default minimal state structure
+        const state = {
+            turn: 0,
+            completed: false,
+             
+            state: 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS' as unknown as 'START_GAME',
+            waiting: { waiting: [], responded: [] },
+            points: [ 0, 0 ],
+            names: [ 'Player 1', 'Player 2' ],
+            players: undefined,
+            setup: {
+                playersReady: [ true, true ],
+            },
+            params: {
+                maxHandSize: 10,
+                maxTurns: 30,
+            },
+            data: [],
+            turnCounter: {
+                turnNumber: 2, // Start at turn 2 to avoid first turn restrictions (action phase assumption)
+            },
+            turnState: {
+                shouldEndTurn: false,
+                supporterPlayedThisTurn: false,
+                stadiumPlayedThisTurn: false,
+                retreatedThisTurn: false,
+                evolvedInstancesThisTurn: [],
+                usedAbilitiesThisTurn: [],
+                pendingSelection: undefined,
+            },
+            statusEffects: {
+                activeStatusEffects: [[], []], // No status effects for either player
+            },
+            coinFlip: {
+                nextFlipGuaranteedHeads: false,
+                mockedResults: [],
+                mockedResultIndex: 0,
+            },
+            field: {
+                creatures: [
+                    [{ fieldInstanceId: 'basic-creature-1', evolutionStack: [{ templateId: 'basic-creature', instanceId: 'basic-creature-1' }], damageTaken: 0, turnLastPlayed: 0 }],
+                    [{ fieldInstanceId: 'basic-creature-2', evolutionStack: [{ templateId: 'basic-creature', instanceId: 'basic-creature-2' }], damageTaken: 0, turnLastPlayed: 0 }],
+                ],
+            },
+            energy: {
+                currentEnergy: [ null, null ],
+                nextEnergy: [ null, null ],
+                availableTypes: [[ 'fire' ], [ 'fire' ]],
+                isAbsoluteFirstTurn: false,
+                attachedEnergyByInstance: {} as Record<string, EnergyDictionary>,
+                discardedEnergy: [ createEmptyEnergyDict(), createEmptyEnergyDict() ],
+            },
+            tools: {
+                attachedTools: {} as Record<string, { templateId: string, instanceId: string }>,
+            },
+            effects: {
+                immediatelyPendingEffects: [],
+                activePassiveEffects: [],
+                nextEffectId: 0,
+            },
+            cardRepository: {},
+            deck: [[], []], // Array of card arrays for each player
+            hand: [[], []], // Array of card arrays for each player
+            discard: [[], []], // Array of discarded card arrays for each player
+            stadium: {
+                activeStadium: undefined,
+            },
+        } satisfies ControllerState<Controllers>;
+        
+        // Apply customization if provided
+        if (customizer) {
+            customizer(state);
+        }
+        
+        return state;
+    }
+
+    /**
+     * Customize the game state (e.g., to set a specific starting state in the state machine)
+     * @param stateName The name of the state to start at (e.g., 'generateEnergyAndDrawCard', 'START_GAME', 'checkupPhase')
+     * @returns A customizer function that sets the game state
+     * 
+     * Common state names for unit tests:
+     * - 'START_GAME' - Beginning of game before setup
+     * - 'generateEnergyAndDrawCard' - Start of turn before actions
+     * - 'checkupPhase' - Checkup phase at end of turn
+     * - 'ACTIONLOOP_ACTION_ACTION' - Main action phase (default for createActionPhaseState)
+     * - 'nextTurn' - Transition between turns
+     * 
+     * Note: State names may change if the state machine is modified.
+     * Run `console.log(Object.keys(flattened.states))` in @cards-ts/state-machine's adapt.js to see all available states.
+     */
+    static withGameState(stateName: 'START_GAME' | 'END_GAME' | 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
+        return (state: ControllerState<Controllers>) => {
+             
+            if (stateName !== 'START_GAME' && stateName !== 'END_GAME' && stateName !== 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
+                throw new Error(`Invalid state name: ${stateName}. Must be START_GAME, END_GAME, or ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS`);
+            }
+            state.state = stateName as any;
+            
+            // Adjust setup based on state
+            if (stateName === 'START_GAME') {
+                state.setup.playersReady = [ false, false ];
+                state.turnCounter.turnNumber = 0;
+                state.field.creatures = [[], []];
+                state.energy.isAbsoluteFirstTurn = true;
+            } else if (stateName === 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
+                // Action phase state: setup done, have creatures, in game
+                state.setup.playersReady = [ true, true ];
+                state.turnCounter.turnNumber = 2; // Start at turn 2 to avoid first turn restrictions
+                state.energy.isAbsoluteFirstTurn = false;
+                // Ensure creatures exist
+                if (state.field.creatures[0].length === 0) {
+                    state.field.creatures = [
+                        [{ fieldInstanceId: 'basic-creature-1', evolutionStack: [{ templateId: 'basic-creature', instanceId: 'basic-creature-1' }], damageTaken: 0, turnLastPlayed: 0 }],
+                        [{ fieldInstanceId: 'basic-creature-2', evolutionStack: [{ templateId: 'basic-creature', instanceId: 'basic-creature-2' }], damageTaken: 0, turnLastPlayed: 0 }],
+                    ];
+                }
+            } else {
+                // END_GAME
+                state.setup.playersReady = [ true, true ];
+                if (state.turnCounter.turnNumber === 0) {
+                    state.turnCounter.turnNumber = 2;
+                }
+                // Ensure creatures exist if not in START_GAME
+                if (state.field.creatures[0].length === 0) {
+                    state.field.creatures = [
+                        [{ fieldInstanceId: 'basic-creature-1', evolutionStack: [{ templateId: 'basic-creature', instanceId: 'basic-creature-1' }], damageTaken: 0, turnLastPlayed: 0 }],
+                        [{ fieldInstanceId: 'basic-creature-2', evolutionStack: [{ templateId: 'basic-creature', instanceId: 'basic-creature-2' }], damageTaken: 0, turnLastPlayed: 0 }],
+                    ];
+                }
+            }
+            
+            if (stateName === 'END_GAME') {
+                state.energy.isAbsoluteFirstTurn = true;
+            }
+        };
+    }
+
+    // TODO: StateBuilder should use CreatureRepository to validate creature IDs exist before creating instances
+    static withCreatures(player: number, active: string, bench: string[] = []) {
+        return (state: ControllerState<Controllers>) => {
+            const activeInstanceId = `${active}-${player}`;
+            // Create array with active creature at position 0, bench at 1+
+            state.field.creatures[player] = [
+                { 
+                    fieldInstanceId: activeInstanceId, // Field instance ID stays constant
+                    evolutionStack: [{ templateId: active, instanceId: activeInstanceId }],
+                    damageTaken: 0, 
+                    turnLastPlayed: 1, 
+                },
+                ...bench.map((templateId, index) => {
+                    const benchInstanceId = `${templateId}-${player}-${index}`;
+                    return {
+                        fieldInstanceId: benchInstanceId, // Field instance ID stays constant
+                        evolutionStack: [{ templateId, instanceId: benchInstanceId }],
+                        damageTaken: 0,
+                        turnLastPlayed: 1,
+                    };
+                }),
+            ];
+        };
+    }
+
+    static withEnergy(creatureInstanceId: string, energyTypes: PartialEnergyDict) {
+        return (state: ControllerState<Controllers>) => {
+            StateBuilder.validateInstanceIdWithError(state, creatureInstanceId);
+            state.energy.attachedEnergyByInstance[creatureInstanceId] = { ...createEmptyEnergyDict(), ...energyTypes };
+        };
+    }
+
+    static withHand(player: number, cards: Array<{ templateId: string, type?: GameCard['type'] }>) {
+        return (state: ControllerState<Controllers>) => {
+            state.hand[player] = cards.map((card, index) => ({
+                instanceId: `${card.templateId}-hand-${index}`,
+                templateId: card.templateId,
+                type: card.type || 'creature',
+            }));
+        };
+    }
+
+    private static validateInstanceIdWithError(state: ControllerState<Controllers>, creatureInstanceId: string): void {
+        const creatureExists = validateCreatureInstance(state, creatureInstanceId);
+        
+        if (!creatureExists) {
+            const availableInstances = [];
+            for (let player = 0; player < 2; player++) {
+                for (const creature of state.field.creatures[player]) {
+                    // Add all instanceIds from the evolution stack
+                    for (const card of creature.evolutionStack) {
+                        availableInstances.push(card.instanceId);
+                    }
+                }
+            }
+            throw new Error(`Creature instance '${creatureInstanceId}' not found. Available instances: ${availableInstances.join(', ')}`);
+        }
+    }
+
+    static withDamage(creatureInstanceId: string, damage: number) {
+        return (state: ControllerState<Controllers>) => {
+            // Find and update damage for the specified creature instance
+            for (let player = 0; player < 2; player++) {
+                for (const creature of state.field.creatures[player]) {
+                    if (creature.evolutionStack.some(card => card.instanceId === creatureInstanceId)) {
+                        creature.damageTaken = damage;
+                        return;
+                    }
+                }
+            }
+            
+            // If we get here, the creature instance wasn't found
+            StateBuilder.validateInstanceIdWithError(state, creatureInstanceId);
+        };
+    }
+
+    static withStatusEffect(player: number, effect: string) {
+        return (state: ControllerState<Controllers>) => {
+            // Convert string to StatusEffectType enum
+            const statusEffectMap: Record<string, StatusEffectType> = {
+                sleep: StatusEffectType.ASLEEP,
+                burn: StatusEffectType.BURNED,
+                confusion: StatusEffectType.CONFUSED,
+                paralysis: StatusEffectType.PARALYZED,
+                poison: StatusEffectType.POISONED,
+            };
+            
+            const effectType = statusEffectMap[effect];
+            if (!effectType) {
+                throw new Error(`Unknown status effect: ${effect}`);
+            }
+            // Initialize array if it doesn't exist
+            if (!state.statusEffects.activeStatusEffects[player]) {
+                state.statusEffects.activeStatusEffects[player] = [];
+            }
+            // Append to existing effects instead of replacing
+            state.statusEffects.activeStatusEffects[player].push({ type: effectType, appliedTurn: 1 });
+        };
+    }
+
+    static withTurnNumber(turnNumber: number) {
+        return (state: ControllerState<Controllers>) => {
+            state.turnCounter.turnNumber = turnNumber;
+        };
+    }
+
+    static withFirstTurnRestriction(isFirstTurn: boolean = true) {
+        return (state: ControllerState<Controllers>) => {
+            state.energy.isAbsoluteFirstTurn = isFirstTurn;
+        };
+    }
+
+    static withCanEvolve(player: number, position: number = 0) {
+        return (state: ControllerState<Controllers>) => {
+            // TODO Evolution logic is handled by the evolution controller or turn state
+        };
+    }
+
+    static withTurn(turn: number) {
+        return (state: ControllerState<Controllers>) => {
+            state.turn = turn;
+        };
+    }
+
+    static withDeck(player: number, cards: Array<{ templateId: string, type?: GameCard['type'] }>) {
+        return (state: ControllerState<Controllers>) => {
+            state.deck[player] = cards.map((card, index) => ({
+                instanceId: `${card.templateId}-deck-${index}`,
+                templateId: card.templateId,
+                type: card.type || 'creature',
+            }));
+        };
+    }
+
+    static withTool(creatureInstanceId: string, toolCardId: string) {
+        return (state: ControllerState<Controllers>) => {
+            StateBuilder.validateInstanceIdWithError(state, creatureInstanceId);
+            const toolInstanceId = `${toolCardId}-1`;
+            state.tools.attachedTools[creatureInstanceId] = { 
+                templateId: toolCardId, 
+                instanceId: toolInstanceId, 
+            };
+            // Note: Passive effects are initialized by initializePassiveEffectsForTestState in runTestGame
+        };
+    }
+
+    static withCurrentEnergy(player: number, energyType: AttachableEnergyType | null) {
+        return (state: ControllerState<Controllers>) => {
+            state.energy.currentEnergy[player] = energyType;
+        };
+    }
+
+    static withNoEnergy(player: number) {
+        return (state: ControllerState<Controllers>) => {
+            // Set current energy to null (no energy available)
+            state.energy.currentEnergy[player] = null;
+            state.energy.nextEnergy[player] = null;
+        };
+    }
+
+    static withMockedCoinFlips(results: boolean[]) {
+        return (state: ControllerState<Controllers>) => {
+            state.coinFlip.mockedResults = results;
+            state.coinFlip.mockedResultIndex = 0;
+        };
+    }
+
+    /**
+     * Set up a stadium card as already active on the field
+     * @param templateId The stadium card template ID
+     * @param owner The player who owns the stadium (0 or 1)
+     * @param name Optional display name for the stadium
+     */
+    static withStadium(templateId: string, owner: number = 0, name?: string) {
+        return (state: ControllerState<Controllers>) => {
+            state.stadium = {
+                activeStadium: {
+                    templateId,
+                    instanceId: `${templateId}-instance`,
+                    owner,
+                    name: name || templateId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' '),
+                },
+            };
+            // Mark stadium as not played this turn (it was played in a previous turn)
+            state.turnState.stadiumPlayedThisTurn = false;
+            // Note: Passive effects will be initialized automatically by initializePassiveEffectsForTestState
+        };
+    }
+
+    static combine(...customizers: Array<(state: ControllerState<Controllers>) => void>) {
+        return (state: ControllerState<Controllers>) => {
+            customizers.forEach(customizer => customizer(state));
+        };
+    }
+}

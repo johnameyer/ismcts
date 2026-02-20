@@ -1,0 +1,5 @@
+onlyBuiltDependencies:
+  - '@cards-ts/core'
+  - '@cards-ts/state-machine'
+  - '@cards-ts/euchre'
+  - '@cards-ts/pocket-tcg'
