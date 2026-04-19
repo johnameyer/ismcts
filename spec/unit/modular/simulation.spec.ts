@@ -296,6 +296,16 @@ describe('ISMCTSSimulation Scenarios', () => {
                     StateBuilder.combine(
                         StateBuilder.withCreatures(0, 'basic-creature'),
                         StateBuilder.withCreatures(1, 'basic-creature'),
+                        // Give ahead player more HP to reflect their advantage
+                        expectedAboveOrBelow === 'above'
+                            ? (state) => {
+                                state.field.creatures[0][0].damageTaken = 0;
+                                state.field.creatures[1][0].damageTaken = 30; // Opponent at disadvantage
+                            }
+                            : (state) => {
+                                state.field.creatures[0][0].damageTaken = 30; // Player at disadvantage
+                                state.field.creatures[1][0].damageTaken = 0;
+                            },
                         setup,
                     ),
                 );

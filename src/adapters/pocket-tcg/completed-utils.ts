@@ -44,7 +44,13 @@ export function isGameEnded(gameState: ControllerState<Controllers>): boolean {
         return true;
     }
     
-    // Check for elimination (no field cards)
+    // During setup, the game is not ended even if no creatures are on field yet
+    const setupComplete = state.setup.playersReady.every(ready => ready);
+    if (!setupComplete) {
+        return false;
+    }
+    
+    // Check for elimination (no field cards) - only after setup is complete
     const player0HasCards = playerHasFieldCards(gameState, 0);
     const player1HasCards = playerHasFieldCards(gameState, 1);
     

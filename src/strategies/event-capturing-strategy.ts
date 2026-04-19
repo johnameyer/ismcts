@@ -31,7 +31,7 @@ export class EventCapturingStrategy<
 
         // Track the event if tracker has trackEvent method
         if (typeof (this.tracker as Record<string, unknown>).trackEvent === 'function') {
-            ((this.tracker as Record<string, unknown>).trackEvent as Function)(this.playerIndex, eventType);
+            ((this.tracker as Record<string, unknown>).trackEvent as (playerIndex: number, eventType: string) => void)(this.playerIndex, eventType);
         }
 
         return action;

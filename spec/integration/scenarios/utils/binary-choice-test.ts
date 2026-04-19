@@ -124,7 +124,7 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
     // Validate alternative actions based on configuration
     if (actions.length > 1) {
         for (let i = 0; i < actions.length; i++) {
-            if (i == expectedActionIndex) {
+            if (i === expectedActionIndex) {
                 continue; 
             }
             

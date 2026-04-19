@@ -5,12 +5,12 @@ import { calculateAvgScore } from '../utils/ismcts-node-utils.js';
 import { isWaiting, isWaitingForPlayer } from '../utils/waiting-state-utils.js';
 import { GameAdapterConfig } from '../adapter-config.js';
 import { printTree } from '../utils/tree-debug.js';
+import { ISMCTSRoot } from '../ismcts-node.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { ISMCTSBackpropagation } from './backpropagation.js';
 import { ISMCTSSimulation } from './simulation.js';
 import { ISMCTSExpansion } from './expansion.js';
 import { ISMCTSSelection } from './selection.js';
-import { ISMCTSRoot } from '../ismcts-node.js';
 import { ISMCTSConfig, DEFAULT_ISMCTS_CONFIG } from './ismcts-config.js';
 
 export class ISMCTS<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers> {

@@ -33,10 +33,10 @@ export class MockCardRepository extends CardRepository {
             : DEFAULT_TEST_TOOLS;
         
         super(
-            creatures,
-            supporters,
-            options?.items,
-            tools,
+            Object.fromEntries(creatures),
+            Object.fromEntries(supporters),
+            options?.items ? Object.fromEntries(options.items) : undefined,
+            Object.fromEntries(tools),
         );
     }
 }
@@ -227,10 +227,10 @@ export function createMockCardRepository(options?: {
         : new Map(DEFAULT_TEST_TOOLS);
     
     return new CardRepository(
-        creaturesMap,
-        supportersMap,
-        itemsMap,
-        toolsMap,
+        Object.fromEntries(creaturesMap),
+        Object.fromEntries(supportersMap),
+        Object.fromEntries(itemsMap),
+        Object.fromEntries(toolsMap),
     );
 }
 

@@ -662,10 +662,12 @@ describe('Legal Actions Validation', () => {
             cardRepository,
         );
 
-        // Simulate that player 0 already retreated this turn
+        // Framework type bridging - cast to any for framework internals
+        /* eslint-disable @typescript-eslint/no-explicit-any */
         (gameState as any).controllers.turnState.setRetreatThisTurn(0, true);
 
         const handlerData = createGenericPlayerView(gameState as any, 0);
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         const legalActions = legalActionsGenerator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES, false);
         
         const retreatActions = legalActions.filter(action => action instanceof RetreatResponseMessage);
@@ -685,7 +687,10 @@ describe('Legal Actions Validation', () => {
             cardRepository,
         );
 
+        // Framework type bridging - cast to any for framework internals
+        /* eslint-disable @typescript-eslint/no-explicit-any */
         const handlerData = createGenericPlayerView(gameState as any, 0);
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         const legalActions = legalActionsGenerator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES, false);
         
         const retreatActions = legalActions.filter(action => action instanceof RetreatResponseMessage);

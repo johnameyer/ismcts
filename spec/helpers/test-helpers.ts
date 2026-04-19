@@ -134,7 +134,7 @@ export function initializePassiveEffectsForTestState(
                     for (const effect of creatureData.ability.effects) {
                         // Check if this is a modifier effect that should be registered as passive
                         if ('duration' in effect && effect.duration) {
-                            const modifierEffect = effect as ModifierEffect;
+                            const modifierEffect = effect as unknown as ModifierEffect;
                             
                             // Create the passive effect entry
                             const passiveEffect = {
@@ -173,7 +173,7 @@ export function initializePassiveEffectsForTestState(
                 for (const effect of toolData.effects) {
                     // Check if this is a modifier effect that should be registered as passive
                     if ('duration' in effect && effect.duration) {
-                        const modifierEffect = effect as ModifierEffect;
+                        const modifierEffect = effect as unknown as ModifierEffect;
                         
                         // Create the passive effect entry
                         const passiveEffect = {
@@ -226,7 +226,7 @@ export function initializePassiveEffectsForTestState(
                 for (const effect of stadiumData.effects) {
                     // Check if this is a modifier effect that should be registered as passive
                     if ('duration' in effect && effect.duration) {
-                        const modifierEffect = effect as ModifierEffect;
+                        const modifierEffect = effect as unknown as ModifierEffect;
                         
                         // Create the passive effect entry
                         const passiveEffect = {
@@ -318,7 +318,7 @@ export function runTestGame(config: TestGameConfig): {
             config.stateCustomizer(preConfiguredState);
         }
     } else {
-        preConfiguredState = StateBuilder.createActionPhaseState(config.stateCustomizer)! as ControllerState<Controllers>;
+        preConfiguredState = StateBuilder.createActionPhaseState(config.stateCustomizer)! as unknown as ControllerState<Controllers>;
     }
     
     const repository = config.customRepository || new MockCardRepository();
@@ -334,7 +334,10 @@ export function runTestGame(config: TestGameConfig): {
          
         // Try to get sync responses - HandlerProxy interface varies by game
         try {
-            const getSyncResponsesFn = ((driver as unknown as { handlerProxy: { getSyncResponses?: () => Array<[number, unknown]> } }).handlerProxy).getSyncResponses;
+            // Framework type bridging - use any for complex type  
+            /* eslint-disable @typescript-eslint/no-explicit-any, @stylistic/block-spacing */
+            const getSyncResponsesFn = (driver as any).handlerProxy?.getSyncResponses;
+            /* eslint-enable @typescript-eslint/no-explicit-any, @stylistic/block-spacing */
             const syncResponses = typeof getSyncResponsesFn === 'function' 
                 ? (getSyncResponsesFn as () => Array<[number, unknown]>)()
                 : undefined;

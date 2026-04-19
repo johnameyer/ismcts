@@ -87,7 +87,7 @@ export function createEuchreDriverFactory(): DriverFactory<ResponseMessage, Cont
         });
         
         // Use provided handlers or create no-op handlers for all 4 players
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        /* eslint-disable @typescript-eslint/no-explicit-any */
         const playersToUse: any = handlers && handlers.length > 0 
             ? (handlers as any[]).map(h => new HandlerChain([ h ]))
             : [
@@ -110,6 +110,7 @@ export function createEuchreDriverFactory(): DriverFactory<ResponseMessage, Cont
                 message,
             );
         };
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         
         return frameworkDriver;
     };

@@ -601,13 +601,15 @@ export function createPocketTCGDriverFactory(cardRepository: CardRepository): Dr
             handleMessage: () => {},
         });
         
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // Framework type bridging - cast to any for HandlerChain creation
+        /* eslint-disable @typescript-eslint/no-explicit-any */
         const playersToUse: any = handlers && handlers.length > 0 
             ? (handlers as any[]).map(h => new HandlerChain([ h ]))
             : [
                 new HandlerChain([ noOpHandler() ]),
                 new HandlerChain([ noOpHandler() ]),
             ];
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         
         // Pass empty player names array - framework doesn't strictly require them
         const frameworkDriver = factory.getGameDriver(playersToUse, params, [], gameState);

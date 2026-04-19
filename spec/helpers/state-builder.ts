@@ -110,6 +110,7 @@ export class StateBuilder {
             stadium: {
                 activeStadium: undefined,
             },
+            random: { mockedSelections: [], mockedSelectionIndex: 0 },
         } satisfies ControllerState<Controllers>;
         
         // Apply customization if provided
@@ -141,7 +142,7 @@ export class StateBuilder {
             if (stateName !== 'START_GAME' && stateName !== 'END_GAME' && stateName !== 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
                 throw new Error(`Invalid state name: ${stateName}. Must be START_GAME, END_GAME, or ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS`);
             }
-            state.state = stateName as any;
+            state.state = stateName as unknown as typeof state.state;
             
             // Adjust setup based on state
             if (stateName === 'START_GAME') {

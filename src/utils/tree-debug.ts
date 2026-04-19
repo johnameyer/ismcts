@@ -13,7 +13,14 @@ export const printTree = (node: ISMCTSNode<Message> | ISMCTSRoot<Message>, depth
         console.log(`${indent}${prefix}ROOT: visits=${node.visits}, children=${node.children.length}`);
     }
     
-    node.children.forEach((child, idx) => {
+    // Sort children by visits (descending) then by score (descending)
+    const sortedChildren = [ ...node.children ].sort((a, b) => {
+        const scoreA = a.visits > 0 ? a.totalReward / a.visits : 0;
+        const scoreB = b.visits > 0 ? b.totalReward / b.visits : 0;
+        return b.visits - a.visits || scoreB - scoreA;
+    });
+    
+    sortedChildren.forEach((child, idx) => {
         printTree(child, depth + 1, `[${idx}] `);
     });
 };

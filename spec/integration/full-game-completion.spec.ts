@@ -57,11 +57,11 @@ function createTestCardRepository(): CardRepository {
     creatureMap.set(fireStage1Creature.templateId, fireStage1Creature);
 
     return new CardRepository(
-        creatureMap,
-        new Map(),
-        new Map(),
-        new Map(),
-        new Map(),
+        Object.fromEntries(creatureMap),
+        Object.fromEntries(new Map()),
+        Object.fromEntries(new Map()),
+        Object.fromEntries(new Map()),
+        Object.fromEntries(new Map()),
     );
 }
 
@@ -77,7 +77,7 @@ function createTrackedStrategy(baseStrategy: DecisionStrategy<ResponseMessage, C
             if (prop === 'getAction' && typeof value === 'function') {
                 return function(handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]) {
                     // Call the original strategy's getAction
-                    const action = (value as Function).apply(target, [ handlerData, expectedResponseTypes ]);
+                    const action = (value as (handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]) => ResponseMessage).apply(target, [ handlerData, expectedResponseTypes ]);
                     
                     if (process.env.DEBUG_HANDLER === 'true') {
                         console.log(`[Handler] P${playerIndex}.getAction called, expecting: ${expectedResponseTypes?.join(',')} => action: ${action?.type || 'null'}`);

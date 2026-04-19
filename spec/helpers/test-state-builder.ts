@@ -55,7 +55,7 @@ export function createNonWaitingGameStateForMCTS(
         throw new Error('createNonWaitingGameStateForMCTS created a state with waiting set - this should never happen');
     }
     
-    return state as ControllerState<Controllers>;
+    return state as unknown as ControllerState<Controllers>;
 }
 
 /**
