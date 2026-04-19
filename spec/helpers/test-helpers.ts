@@ -335,9 +335,9 @@ export function runTestGame(config: TestGameConfig): {
         // Try to get sync responses - HandlerProxy interface varies by game
         try {
             // Framework type bridging - use any for complex type  
-            /* eslint-disable @typescript-eslint/no-explicit-any, @stylistic/block-spacing */
+            /* eslint-disable @typescript-eslint/no-explicit-any */
             const getSyncResponsesFn = (driver as any).handlerProxy?.getSyncResponses;
-            /* eslint-enable @typescript-eslint/no-explicit-any, @stylistic/block-spacing */
+            /* eslint-enable @typescript-eslint/no-explicit-any */
             const syncResponses = typeof getSyncResponsesFn === 'function' 
                 ? (getSyncResponsesFn as () => Array<[number, unknown]>)()
                 : undefined;

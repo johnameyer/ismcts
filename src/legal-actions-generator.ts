@@ -104,6 +104,14 @@ export class LegalActionsGenerator<ResponseMessage extends Message, Controllers 
             console.error('[LegalActionsGenerator] validated count:', validated.length);
             console.error('[LegalActionsGenerator] validated types:', validated.map(a => a.type));
         }
+
+        if (validated.length === 0) {
+            if (process.env.DEBUG_LEGAL_ACTIONS === 'true') {
+                console.error('[LegalActionsGenerator] expectedResponseTypes:', expectedResponseTypes);
+                console.error('[LegalActionsGenerator] handlerData:', handlerData);
+            }
+            throw new Error('No actions are possible?');
+        }
         
         return validated;
     }
@@ -128,6 +136,9 @@ export class LegalActionsGenerator<ResponseMessage extends Message, Controllers 
                 return isValid;
             } catch (error) {
                 // Action failed validation
+                if (process.env.DEBUG_LEGAL_ACTIONS === 'true') {
+                    console.error('[LegalActionsGenerator] validation threw:', (error as Error).message);
+                }
                 return false;
             }
         });

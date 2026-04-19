@@ -175,7 +175,19 @@ export interface GameAdapterConfig<ResponseMessage extends Message, Controllers 
     getActionWeight?: (action: ResponseMessage) => number;
 
     /**
-     * /**
+     * Optional immediate-win detector for enhanced random play.
+     * If provided, random playout strategies can prioritize a legal action
+     * that is guaranteed to end the round in a win for the acting player.
+     *
+     * Return null when no guaranteed immediate win exists.
+     */
+    getImmediateWinningAction?: (
+        handlerData: ControllerHandlerState<Controllers>,
+        expectedResponseTypes: readonly (ResponseMessage['type'])[],
+        legalActions: ResponseMessage[],
+    ) => ResponseMessage | null;
+
+    /**
      * Game-specific determinization for expanding hidden information.
      * Creates full game states from partial information during ISMCTS simulation.
      * Abstracts away how different games handle hidden cards, random elements, etc.

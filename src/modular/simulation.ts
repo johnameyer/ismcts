@@ -2,7 +2,7 @@ import { Message, IndexedControllers, ControllerState } from '@cards-ts/core';
 import { RoundEndDetector, RewardCalculator, DriverFactory, GameAdapterConfig } from '../adapter-config.js';
 import { isWaiting } from '../utils/waiting-state-utils.js';
 import { simulateToCompletion } from '../utils/driver-orchestrator.js';
-import { RandomDecisionStrategy } from '../strategies/random-decision-strategy.js';
+import { EnhancedRandomDecisionStrategy } from '../strategies/enhanced-random-decision-strategy.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 
 /**
@@ -76,7 +76,7 @@ export class ISMCTSSimulation<ResponseMessage extends Message, Controllers exten
         // Use orchestrator to run simulation to completion with random play
         const finalState = simulateToCompletion(
             gameState,
-            () => new RandomDecisionStrategy(this.gameAdapterConfig),
+            () => new EnhancedRandomDecisionStrategy(this.gameAdapterConfig),
             this.gameAdapterConfig.createHandler,
             this.driverFactory,
             maxMoves,

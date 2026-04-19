@@ -37,6 +37,7 @@ Each game has an adapter that provides:
 Pluggable strategies for choosing bot actions:
 - `ISMCTSDecisionStrategy` - Full MCTS computation
 - `RandomDecisionStrategy` - Random fallback
+- `EnhancedRandomDecisionStrategy` - Random play with immediate-win detection
 - `EventCapturingStrategy` - Testing wrapper for event logging
 
 ## Directory Structure
@@ -187,4 +188,3 @@ pnpm test -- --grep "Binary Choice"
 
 - `AGENTS.md` - Architectural patterns and conventions
 - `spec/README.md` - Test organization and coverage
-
