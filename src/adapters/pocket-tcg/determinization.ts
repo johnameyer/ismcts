@@ -46,7 +46,17 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         
         const result = {
             ...handlerDataWithoutPlayers,
-            state: (handlerData as any).state,
+            /*
+             * GameStateController.getFor() returns undefined, so handlerData.state is always undefined.
+             * If we pass undefined, initializeControllers falls back to initialState() = START_GAME,
+             * which causes resume() to replay the setup phase mid-game (calling handleSetup, overwriting
+             * the active card, and corrupting energy/effect maps).
+             *
+             * Using ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS matches the state after merge() has already
+             * processed an action's effects, so resume() correctly handles post-action transitions
+             * (knockouts, selecting new active, etc.) without re-running setup.
+             */
+            state: 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS' as unknown as ControllerState<Controllers>['state'],
             deck: [ player0Cards.deck, player1Cards.deck ],
             hand: [ player0Cards.hand, player1Cards.hand ],
             data: Array.isArray((handlerData).data) ? (handlerData as any).data : [ (handlerData as any).data || {} ],
