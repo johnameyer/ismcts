@@ -39,6 +39,12 @@ export interface BinaryChoiceTestConfig {
      * When true (default), validates that alternatives score < 0.5 (losing moves, strict mode).
      */
     allowViableAlternatives?: boolean;
+
+    /**
+     * Optional: the player index whose turn it is. Defaults to 0.
+     * Use when the waiting state is for a player other than player 0 (e.g. post-KO select-active).
+     */
+    playerIndex?: number;
 }
 
 /**
@@ -69,6 +75,7 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
         expectedAction,
         description,
         allowViableAlternatives = false,
+        playerIndex = 0,
     } = config;
 
     /*
@@ -76,7 +83,8 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
      * This ensures the scenario setup is correct before running MCTS
      */
     const driver = simulation.gameAdapterConfig.driverFactory(gameState, []);
-    const handlerData = createGenericPlayerView(driver.gameState.controllers, 0);
+    const stateMachineState = driver.getState().state;
+    const handlerData = createGenericPlayerView(driver.gameState.controllers, playerIndex, { state: stateMachineState });
     const legalActionsGenerator = new LegalActionsGenerator(
         simulation.gameAdapterConfig.actionsGenerator,
         simulation.gameAdapterConfig.driverFactory,
@@ -91,7 +99,7 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
     ).to.be.true;
 
     // Run MCTS evaluation with standardized config
-    const actions = simulation.getActions(gameState, 0, responseTypes, { 
+    const actions = simulation.getActions(gameState, playerIndex, responseTypes, { 
         iterations: 50,
         maxDepth: 25,
     });

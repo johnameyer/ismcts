@@ -363,6 +363,7 @@ export function runTestGame(config: TestGameConfig): {
         
         // If we're in a waiting state with actions available, handle actions before resume
         const currentState = driver.getState();
+
         if (!currentState.completed && currentState.waiting && actions.length > 0) {
             const waitingPositions = currentState.waiting.waiting;
             if (waitingPositions) {

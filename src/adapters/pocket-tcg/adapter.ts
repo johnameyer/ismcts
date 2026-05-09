@@ -71,7 +71,7 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
             
             const result: Partial<ControllerState<Controllers>> = {
                 ...handlerData,
-                state: 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS' as unknown as ControllerState<Controllers>['state'],
+                state: ((handlerData as unknown as Record<string, unknown>).state ?? 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') as unknown as ControllerState<Controllers>['state'],
                 data: Array.isArray(handlerData.data) ? handlerData.data : [ handlerData.data || {} ],
                 hand,
                 deck: reconstructDeckState(handlerData, placeholderTemplateId, placeholderType),
