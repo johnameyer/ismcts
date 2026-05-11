@@ -74,7 +74,7 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         // console.log(`[ISMCTS.getActionsFromHandlerData] Generated ${currentLegalActions.length} legal actions`);
         
         if (currentLegalActions.length === 1) {
-            // Score is arbitrary — only one action so there's nothing to compare against
+            // Score cannot be calculated without running simulations; 1.0 is a placeholder
             return [{ action: currentLegalActions[0], score: 1.0 }];
         }
         
