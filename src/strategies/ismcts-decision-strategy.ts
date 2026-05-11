@@ -60,7 +60,12 @@ export class ISMCTSDecisionStrategy<
             
             return result;
         } catch (error) {
-            console.warn(`[ISMCTSDecisionStrategy] ISMCTS threw error (${error instanceof Error ? error.message : String(error)}), falling back to random strategy`);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            const stackTrace = error instanceof Error ? error.stack : '';
+            console.warn(`[ISMCTSDecisionStrategy] ISMCTS threw error (${errorMsg}), falling back to random strategy`);
+            if (stackTrace) {
+                console.warn(`Stack trace:\n${stackTrace}`);
+            }
             return this.randomStrategy.getAction(handlerData, expectedResponseTypes);
         }
     }

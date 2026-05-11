@@ -490,11 +490,14 @@ describe('LegalActionsGenerator', () => {
             const handlerData = {
                 turn: 0,
                 setup: { playersReady: [ false, false ] },
-                hand: [
-                    { templateId: 'basic-creature', type: 'creature' },
-                    { templateId: 'basic-creature', type: 'creature' },
-                    { templateId: 'basic-creature', type: 'creature' },
-                ],
+                hand: {
+                    hand: [
+                        { templateId: 'basic-creature', type: 'creature' },
+                        { templateId: 'basic-creature', type: 'creature' },
+                        { templateId: 'basic-creature', type: 'creature' },
+                    ],
+                    sizes: [ 3, 5 ],
+                },
                 field: { creatures: [[], []] },
             } as unknown as ReturnType<typeof ControllerUtils.createPlayerView>;
             

@@ -67,16 +67,29 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
     }
 
     getActionsFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): { action: ResponseMessage | null, score: number }[] {
-        // TODO If only one legal action, return it immediately
+        // console.log(`[ISMCTS.getActionsFromHandlerData] Starting with ${responseTypes.length} response types: ${responseTypes.join(',')}`);
+        
+        // Check for only one legal action - return immediately without exploration
+        const currentLegalActions = this.legalActionsGenerator.generateLegalActions(handlerData, responseTypes);
+        // console.log(`[ISMCTS.getActionsFromHandlerData] Generated ${currentLegalActions.length} legal actions`);
+        
+        if (currentLegalActions.length === 1) {
+            // Score cannot be calculated without running simulations; 0.5 (neutral) is a placeholder
+            return [{ action: currentLegalActions[0], score: 0.5 }];
+        }
+        
         const currentPlayer = handlerData.players.position;
+        // console.log(`[ISMCTS.getActionsFromHandlerData] Current player: ${currentPlayer}, starting ${config.iterations} iterations`);
     
         const root = this.createRootNode();
         
         for (let i = 0; i < config.iterations; i++) {
+            // console.log(`[ISMCTS.getActionsFromHandlerData] Iteration ${i + 1}/${config.iterations}`);
             const gameState = this.determinization.determinize(handlerData);
             this.runSingleIteration(root, gameState, config.maxDepth, responseTypes, currentPlayer);
         }
         
+        // console.log(`[ISMCTS.getActionsFromHandlerData] Search complete, root has ${root.children.length} children`);
         const actions = this.getAllActionsWithScores(root);
         return actions.sort((a, b) => b.score - a.score); // Sort by score descending
     }
@@ -91,7 +104,6 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
             throw new Error(`Game state is not waiting for player ${playerIndex}`);
         }
         
-        // TODO If only one legal action, return it immediately
         const root = this.createRootNode();
 
         for (let i = 0; i < config.iterations; i++) {
@@ -190,6 +202,10 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
     }
 
     private getAllActionsWithScores(root: ISMCTSRoot<ResponseMessage>): { action: ResponseMessage, score: number, visits: number }[] {
+        if (root.children.length === 0) {
+            throw new Error('ISMCTS search produced no children - tree expansion failed.');
+        }
+        
         if (process.env.DEBUG_TREE === 'true') {
             console.log('\n[TREE-STRUCTURE] Final MCTS tree:');
             printTree(root);

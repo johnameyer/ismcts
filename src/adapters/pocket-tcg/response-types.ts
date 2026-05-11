@@ -11,3 +11,5 @@ export const MAIN_ACTION_RESPONSE_TYPES = [
 ] as const satisfies readonly (ResponseMessage['type'])[];
 
 export const SELECT_ACTIVE_CARD_RESPONSE_TYPES = [ 'select-active-card-response' ] as const satisfies readonly (ResponseMessage['type'])[];
+
+export const SELECT_TARGET_RESPONSE_TYPES = [ 'select-target-response' ] as const satisfies readonly (ResponseMessage['type'])[];

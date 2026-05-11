@@ -233,6 +233,10 @@ export default defineConfig([
                             group: [ '../adapters/**' ],
                             message: 'Adapters must not import from other adapters. Each adapter should be independent.',
                         },
+                        {
+                            group: [ '../utils/deep-copy-state' ],
+                            message: 'Adapters must not call deepCopyState directly. Use driver-orchestrator functions which handle deep copying internally.',
+                        },
                     ],
                 },
             ],

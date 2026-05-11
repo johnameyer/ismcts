@@ -60,7 +60,9 @@ export class ISMCTSExpansion<ResponseMessage extends Message, Controllers extend
      * @returns Object with new child node and post-action state, or null if fully expanded/game ended
      */
     expand(node: ISMCTSRoot<ResponseMessage> | ISMCTSNode<ResponseMessage>, waitingState: ControllerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]): { node: ISMCTSNode<ResponseMessage>, state: ControllerState<Controllers> } | null {
-        // console.error(`[EXPANSION] expand called with ${expectedResponseTypes.length} response types`);
+        if (process.env.DEBUG_EXPANSION === 'true') {
+            console.error(`[EXPANSION] expand called with response types: ${JSON.stringify(expectedResponseTypes)}`);
+        }
         // PRECONDITION: waitingState is waiting (paused at decision point), expectedResponseTypes already captured by selection
         if (!isWaiting(waitingState)) {
             throw new Error('[ISMCTS Expansion] Expected state paused at decision point');
@@ -98,8 +100,13 @@ export class ISMCTSExpansion<ResponseMessage extends Message, Controllers extend
         );
         
         // FILTER: Find unexplored actions
-        const unexploredActions = legalActions.filter((action: ResponseMessage) => !node.children.some(child => JSON.stringify(child.lastAction) === JSON.stringify(action)),
-        );
+        const unexploredActions = legalActions.filter((action: ResponseMessage) => {
+            const isExplored = node.children.some(child => JSON.stringify(child.lastAction) === JSON.stringify(action));
+            if (process.env.DEBUG_EXPANSION === 'true') {
+                console.error(`[EXPANSION] action: ${action.type}, explored: ${isExplored}`);
+            }
+            return !isExplored;
+        });
         
         if (unexploredActions.length === 0) {
             return null;

@@ -335,9 +335,9 @@ export function runTestGame(config: TestGameConfig): {
         // Try to get sync responses - HandlerProxy interface varies by game
         try {
             // Framework type bridging - use any for complex type  
-            /* eslint-disable @typescript-eslint/no-explicit-any, @stylistic/block-spacing */
+            /* eslint-disable @typescript-eslint/no-explicit-any */
             const getSyncResponsesFn = (driver as any).handlerProxy?.getSyncResponses;
-            /* eslint-enable @typescript-eslint/no-explicit-any, @stylistic/block-spacing */
+            /* eslint-enable @typescript-eslint/no-explicit-any */
             const syncResponses = typeof getSyncResponsesFn === 'function' 
                 ? (getSyncResponsesFn as () => Array<[number, unknown]>)()
                 : undefined;
@@ -363,6 +363,7 @@ export function runTestGame(config: TestGameConfig): {
         
         // If we're in a waiting state with actions available, handle actions before resume
         const currentState = driver.getState();
+
         if (!currentState.completed && currentState.waiting && actions.length > 0) {
             const waitingPositions = currentState.waiting.waiting;
             if (waitingPositions) {

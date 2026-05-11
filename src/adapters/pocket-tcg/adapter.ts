@@ -3,17 +3,23 @@ import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-mes
 import { HandlerData } from '@cards-ts/pocket-tcg/dist/game-handler.js';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { ControllerState } from '@cards-ts/core';
-import { EndTurnResponseMessage, RetreatResponseMessage, AttackResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response/index.js';
+import {
+    AttackResponseMessage,
+    EndTurnResponseMessage,
+    RetreatResponseMessage,
+} from '@cards-ts/pocket-tcg/dist/messages/response/index.js';
 import { GameCard } from '@cards-ts/pocket-tcg/dist/controllers/card-types.js';
-import { COIN_FLIP_AMOUNT_TYPE } from '@cards-ts/pocket-tcg/dist/index.js';
 import { GameAdapterConfig } from '../../adapter-config.js';
 import { DecisionStrategy } from '../../strategies/decision-strategy.js';
+import { applyActionAndResume } from '../../utils/driver-orchestrator.js';
 import { PocketTCGHandler } from './handler.js';
 import { PocketTCGActionsGenerator } from './actions-generator.js';
 import {
     createPocketTCGDriverFactory,
 } from './actions-generator.js';
 import { PocketTCGDeterminization, getTimeoutReward, isGameEnded, getRewardForPlayer } from './index.js';
+
+const COIN_FLIP_AMOUNT_TYPE = 'coin-flip';
 
 /**
  * Create Pocket-TCG GameAdapterConfig with all game-specific implementations.
@@ -39,15 +45,40 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
         reconstructGameStateForValidation: (handlerData: HandlerData): ControllerState<Controllers> => {
             // HandlerData spreads individual controller properties (tools, field, energy, etc.)
             // ControllerState also uses this flattened structure - NOT nested under 'controllers'
+
+            // Reconstruct hand as 2D array for ControllerState (HandController.state is GameCard[][])
+            const hand: Array<GameCard[]> = [[], []];
+            const currentPlayer = handlerData.players.position;
+            hand[currentPlayer] = handlerData.hand.hand;
+
+            // Find a card templateId known to exist in the repository to use for placeholders.
+            // Prefer a card from the current player's hand; fall back to a field creature.
+            const placeholderCard = handlerData.hand.hand[0]
+                ?? handlerData.field.creatures[currentPlayer]?.[0]?.evolutionStack.at(-1)
+                ?? handlerData.field.creatures[1 - currentPlayer]?.[0]?.evolutionStack.at(-1);
+            const placeholderTemplateId = placeholderCard?.templateId ?? 'unknown';
+            const placeholderType: GameCard['type'] = (placeholderCard as GameCard | undefined)?.type ?? 'creature';
+
+            // Opponent's hand: create placeholder cards matching known size.
+            const opponentSize = handlerData.hand.sizes[1 - currentPlayer] || 0;
+            for (let i = 0; i < opponentSize; i++) {
+                hand[1 - currentPlayer].push({
+                    instanceId: `hand-placeholder-p${1 - currentPlayer}-${i}`,
+                    type: placeholderType,
+                    templateId: placeholderTemplateId,
+                });
+            }
             
-            return {
+            const result: Partial<ControllerState<Controllers>> = {
                 ...handlerData,
-                state: handlerData.state || 'START_GAME',
+                state: ((handlerData as unknown as Record<string, unknown>).state ?? 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') as unknown as ControllerState<Controllers>['state'],
                 data: Array.isArray(handlerData.data) ? handlerData.data : [ handlerData.data || {} ],
-                hand: reconstructHandState(handlerData.hand, handlerData.turn),
-                deck: reconstructDeckState(0, handlerData.turn),
+                hand,
+                deck: reconstructDeckState(handlerData, placeholderTemplateId, placeholderType),
                 players: undefined,
-            } as unknown as ControllerState<Controllers>;
+            };
+            
+            return result as ControllerState<Controllers>;
         },
 
         getPlayerNames: (gameState) => gameState.names as string[],
@@ -64,6 +95,16 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
             return 1.0;
         },
 
+        getImmediateWinningAction: (handlerData, expectedResponseTypes, legalActions) => {
+            return findGuaranteedImmediateWinningAction(
+                handlerData,
+                expectedResponseTypes,
+                legalActions,
+                config,
+                cardRepository,
+            );
+        },
+
         createHandler: (strategy: DecisionStrategy<ResponseMessage, Controllers>) => {
             return new PocketTCGHandler(strategy);
         },
@@ -73,38 +114,35 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
 }
 
 /**
- * Reconstruct hand state array for both players from HandlerData.
- * @param playerHand - The current player's hand from HandlerData
- * @param playerIndex - Which player's view this is (0 or 1)
+ * Reconstruct deck state array for both players using fake cards.
+ * Uses deck.sizes from HandlerData to create placeholder decks so validation passes.
+ * This maintains information asymmetry: we know HOW MANY cards are left, but not which ones.
+ * @param handlerData - HandlerData containing deck.sizes (public knowledge)
  */
-function reconstructHandState(playerHand: GameCard[], playerIndex: number): Array<Array<GameCard>> {
-    const hands: Array<Array<GameCard>> = [[], []];
-    hands[playerIndex] = Array.isArray(playerHand) ? playerHand : [];
-    hands[1 - playerIndex] = [];
-    return hands;
-}
+function reconstructDeckState(handlerData: HandlerData, placeholderTemplateId: string, placeholderType: GameCard['type']): Array<Array<GameCard>> {
+    const { sizes } = handlerData.deck;
 
-/**
- * Reconstruct deck state array for both players.
- * Pocket-TCG uses empty arrays for hidden opponent deck.
- * @param _playerDeckSize - Player's deck size (unused, empty for hidden info)
- * @param _playerIndex - Which player's view this is
- */
-function reconstructDeckState(_playerDeckSize: number, _playerIndex: number): Array<Array<GameCard>> {
-    // The HandlerData doesn't expose full deck state, so we create placeholder cards
-    // for validation. These don't need to be real - just enough to satisfy
-    // the game driver's initial hand draw requirements.
-    return [
-        [{ instanceId: 'deck-p0-basic', type: 'supporter', templateId: 'a4-156-will' }],
-        [{ instanceId: 'deck-p1-basic', type: 'supporter', templateId: 'a4-156-will' }],
-    ];
+    const decks: Array<Array<GameCard>> = [[], []];
+
+    for (let playerIdx = 0; playerIdx < 2; playerIdx++) {
+        const size = sizes[playerIdx];
+        for (let i = 0; i < size; i++) {
+            decks[playerIdx].push({
+                instanceId: `deck-placeholder-p${playerIdx}-${i}`,
+                type: placeholderType,
+                templateId: placeholderTemplateId,
+            });
+        }
+    }
+
+    return decks;
 }
 
 function findGuaranteedImmediateWinningAction(
     handlerData: HandlerData,
     expectedResponseTypes: readonly ResponseMessage['type'][],
     legalActions: ResponseMessage[],
-    _config: GameAdapterConfig<ResponseMessage, Controllers>,
+    config: GameAdapterConfig<ResponseMessage, Controllers>,
     cardRepository: CardRepository,
 ): ResponseMessage | null {
     if (!expectedResponseTypes.includes('attack-response')) {
@@ -112,103 +150,27 @@ function findGuaranteedImmediateWinningAction(
     }
 
     const currentPlayer = handlerData.players.position;
-    const opponentPlayer = 1 - currentPlayer;
     const activeCreature = handlerData.field.creatures[currentPlayer]?.[0];
-    const benchCreatures = handlerData.field.creatures[currentPlayer]?.slice(1) || [];
-    const opponentActive = handlerData.field.creatures[opponentPlayer]?.[0];
-    
-    if (!activeCreature || !opponentActive) {
+    if (!activeCreature) {
         return null;
     }
 
-    const opponentTemplateId = opponentActive.evolutionStack[opponentActive.evolutionStack.length - 1]?.templateId;
-    if (!opponentTemplateId) {
-        return null;
-    }
-
-    const opponentCreatureData = cardRepository.getCreature(opponentTemplateId);
-    const opponentMaxHP = opponentCreatureData?.maxHp;
-    if (!opponentMaxHP) {
-        return null;
-    }
-
-    const currentOpponentDamage = opponentActive.damageTaken || 0;
-    const currentPlayerEnergyCards = handlerData.energy.currentEnergy[currentPlayer] || [];
-
-    // Check if current active creature can win
     for (const action of legalActions) {
         if (!isGuaranteedWinningAttack(action, activeCreature, cardRepository, handlerData)) {
             continue;
         }
 
-        const attackIndex = (action as AttackResponseMessage).attackIndex;
-        const activeTemplateId = activeCreature.evolutionStack[activeCreature.evolutionStack.length - 1]?.templateId;
-        if (!activeTemplateId) {
+        const gameState = config.reconstructGameStateForValidation(handlerData);
+        let resultingState;
+        try {
+            resultingState = applyActionAndResume(gameState, action, currentPlayer, config.driverFactory);
+        } catch {
             continue;
         }
-
-        const creatureData = cardRepository.getCreature(activeTemplateId);
-        const attackData = creatureData?.attacks?.[attackIndex];
-        if (!attackData) {
-            continue;
-        }
-
-        // Extract numeric damage value from attack
-        const attackDamage = typeof attackData.damage === 'number' ? attackData.damage : 0;
-        if (attackDamage === 0) {
-            continue;
-        }
-
-        // Check if attack damage would KO opponent
-        const totalDamage = currentOpponentDamage + attackDamage;
-        if (totalDamage >= opponentMaxHP) {
+        const didWinImmediately = isGameEnded(resultingState)
+            && getRewardForPlayer(resultingState, currentPlayer) === 1;
+        if (didWinImmediately) {
             return action;
-        }
-    }
-
-    // Check if we can retreat to a bench creature that can win
-    const activeTemplateId = activeCreature.evolutionStack[activeCreature.evolutionStack.length - 1]?.templateId;
-    if (!activeTemplateId) {
-        return null;
-    }
-
-    const activeCreatureData = cardRepository.getCreature(activeTemplateId);
-    const retreatCost = activeCreatureData?.retreatCost || 0;
-    
-    // Check if we have enough energy to retreat
-    const retreatEnergyAvailable = currentPlayerEnergyCards.length;
-    if (retreatEnergyAvailable < retreatCost) {
-        return null;
-    }
-
-    // Check if any bench creature can win
-    for (const benchCreature of benchCreatures) {
-        const benchTemplateId = benchCreature.evolutionStack[benchCreature.evolutionStack.length - 1]?.templateId;
-        if (!benchTemplateId) {
-            continue;
-        }
-
-        const benchCreatureData = cardRepository.getCreature(benchTemplateId);
-        if (!benchCreatureData?.attacks) {
-            continue;
-        }
-
-        for (const attackData of benchCreatureData.attacks) {
-            const attackDamage = typeof attackData.damage === 'number' ? attackData.damage : 0;
-            if (attackDamage === 0) {
-                continue;
-            }
-
-            // Check if this attack would KO opponent
-            const totalDamage = currentOpponentDamage + attackDamage;
-            if (totalDamage >= opponentMaxHP) {
-                // Find retreat action in legal actions
-                for (const action of legalActions) {
-                    if (action instanceof RetreatResponseMessage) {
-                        return action;
-                    }
-                }
-            }
         }
     }
 

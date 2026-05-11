@@ -10,14 +10,15 @@ import {
     RetreatResponseMessage,
     EvolveResponseMessage,
     UseAbilityResponseMessage,
+    SelectTargetResponseMessage,
 } from '@cards-ts/pocket-tcg/dist/messages/response/index.js';
-import { createWaitingGameStateForMCTS } from '../../helpers/test-state-builder.js';
+import { createWaitingGameStateForMCTS, createNonWaitingGameStateForMCTS } from '../../helpers/test-state-builder.js';
 import { ISMCTS } from '../../../src/modular/ismcts.js';
 import { StateBuilder } from '../../helpers/state-builder.js';
 import { MockCardRepository } from '../../helpers/test-utils.js';
 import { createMockCardRepository } from '../../helpers/test-utils.js';
-import { MAIN_ACTION_RESPONSE_TYPES, SELECT_ACTIVE_CARD_RESPONSE_TYPES } from '../../../src/adapters/pocket-tcg/response-types.js';
-import { createGameAdapterConfig, runTestGame } from '../../helpers/test-helpers.js';
+import { MAIN_ACTION_RESPONSE_TYPES, SELECT_ACTIVE_CARD_RESPONSE_TYPES, SELECT_TARGET_RESPONSE_TYPES } from '../../../src/adapters/pocket-tcg/response-types.js';
+import { createGameAdapterConfig } from '../../helpers/test-helpers.js';
 import { testBinaryChoice } from './utils/binary-choice-test.js';
 import { validateScenario } from './utils/scenario-validation.js';
 
@@ -486,18 +487,17 @@ describe('ISMCTS Binary Choice Scenarios', () => {
     });
 
     describe('Post-KO Decisions', () => {
-        it.skip('should switch to benched strong creature after opponent KO to counter-attack', () => {
+        it('should switch to benched strong creature after opponent KO to counter-attack', () => {
             /**
              * SCENARIO: After Player 0 knocks out Player 1's active creature, Player 1 must choose from bench.
              * 
              * SETUP: We use runTestGame to:
-             * 1. Have Player 0 attack and KO Player 1's active creature
-             * 2. End Player 0's turn
-             * 3. Game automatically transitions to Player 1's select-active-card phase
-             * 4. We extract the waiting state directly from the game driver
+             * 1. Have Player 0 attack and KO Player 1's active creature (which starts at full HP)
+             * 2. Game automatically transitions to Player 1's select-active-card phase
+             * 3. We extract the waiting state directly from the game driver
              * 
-             * KEY: After runTestGame finishes with P0's actions, the state is waiting for P1,
-             * but we use playerIndex 1 since that's whose turn it is to respond.
+             * KEY: After runTestGame dispatches P0's attack, the game is waiting for P1 to select
+             * their new active. We use playerIndex 1 since that's whose turn it is to respond.
              */
             const knockoutRepository = createMockCardRepository({
                 creatures: [
@@ -529,58 +529,46 @@ describe('ISMCTS Binary Choice Scenarios', () => {
                 ],
             });
 
-            // Use runTestGame to play P0's knockout attack - this will leave game waiting for P1 to select active
-            const { driver: knockoutDriver } = runTestGame({
-                actions: [
-                    new AttackResponseMessage(0), // P0 attacks for KO
-                    new EndTurnResponseMessage(),
-                ],
-                stateCustomizer: StateBuilder.combine(
+            // Drive the game to the post-KO state by applying P0's attack directly.
+            // We use driverFactory with no handlers (empty array) to avoid sync handler issues,
+            // then manually apply the attack via handleEvent.
+            const initialState = createNonWaitingGameStateForMCTS(
+                StateBuilder.combine(
                     StateBuilder.withCreatures(0, 'basic-creature'),
                     StateBuilder.withCreatures(1, 'basic-creature', [ 'high-retreat-creature', 'attacking-creature' ]),
-                    StateBuilder.withDamage('basic-creature-0', 0), // P0 healthy
-                    StateBuilder.withDamage('basic-creature-1', 60), // P1 active at KO
                     StateBuilder.withEnergy('basic-creature-0', { fire: 1 }), // P0 can attack
                 ),
-                customRepository: knockoutRepository,
-            });
+                knockoutRepository,
+            );
+            const knockoutAdapterConfig = createGameAdapterConfig(knockoutRepository);
+            const knockoutDriver = knockoutAdapterConfig.driverFactory(initialState, []);
+            knockoutDriver.resume(); // advance to waiting=[0] (P0's attack turn)
+            knockoutDriver.handleEvent(0, new AttackResponseMessage(0), undefined); // apply KO attack
+            knockoutDriver.resume(); // advance through KO handling to waiting=[1] (P1 selects active)
 
             // Extract the state directly from the driver after knockout
             const postKnockoutState = knockoutDriver.getState();
+
+            // P0 now has 1 prize from the KO. Advance to 2 prizes so the scenario is decisive:
+            // - bench[0] (high-retreat, water type, needs water energy): P1 can't attack since the
+            //   energy zone only produces fire energy. P0 immediately KOs it → P0 reaches 3 prizes → P0 wins.
+            // - bench[1] (attacking-creature, fire type): P1 gets fire energy, attacks P0's only creature,
+            //   KOs it (P0 has no bench) → P0 runs out of creatures → P1 wins.
+            (postKnockoutState as unknown as Record<string, unknown[]>).points[0] = 2;
 
             const knockoutSimulation = new ISMCTS<ResponseMessage, Controllers>(
                 createGameAdapterConfig(knockoutRepository),
             );
 
-            /*
-             * After P0's turn ends, game is waiting for P1 to select active
-             * Use playerIndex 1 since that's whose decision we're evaluating
-             */
-            const actions = knockoutSimulation.getActions(postKnockoutState, 1, SELECT_ACTIVE_CARD_RESPONSE_TYPES, { 
-                iterations: 50,
-                maxDepth: 25,
+            testBinaryChoice({
+                gameState: postKnockoutState,
+                simulation: knockoutSimulation,
+                responseTypes: SELECT_ACTIVE_CARD_RESPONSE_TYPES,
+                // Bench position 1 is 'attacking-creature' (80 HP, 60-damage attack)
+                expectedAction: new SelectActiveCardResponseMessage(1),
+                description: 'Should switch to the strong attacking creature for counter-attack potential',
+                playerIndex: 1,
             });
-
-            expect(actions).to.have.length.of.at.least(1, 'Simulation should return at least one action');
-            
-            const bestAction = actions[0];
-            const action = bestAction.action as ResponseMessage;
-            
-            console.log('[BINARY-CHOICE] Actions for: Should switch to benched creature with strong attack');
-            console.log(`  Best: ${JSON.stringify(action)} = ${bestAction.score.toFixed(4)}`);
-            for (let i = 1; i < Math.min(3, actions.length); i++) {
-                const alt = actions[i];
-                const altMessage = alt.action as ResponseMessage;
-                console.log(`  Alt[${i}]: ${JSON.stringify(altMessage)} = ${alt.score.toFixed(4)}`);
-            }
-            
-            // Should switch to the attacking creature (bench index 1: 'attacking-creature')
-            const expectedAction = new SelectActiveCardResponseMessage(1);
-            expect(JSON.stringify(action)).to.equal(JSON.stringify(expectedAction), 'Should switch to benched creature');
-            expect(bestAction.score).to.be.greaterThan(
-                0.5,
-                'Should prefer switching to strong creature (score > 0.5)',
-            );
         });
 
         it.skip('should attack with risky 50/50 damage chance to KO opponent', () => {
@@ -750,6 +738,103 @@ describe('ISMCTS Binary Choice Scenarios', () => {
             // Also verify via JSON serialization that it's a valid SelectActiveCardResponseMessage
             const expectedAction = new SelectActiveCardResponseMessage(0);
             expect(JSON.stringify(action)).to.equal(JSON.stringify(expectedAction));
+        });
+    });
+
+    describe('Target Selection Decisions', () => {
+        /**
+         * These tests cover scenarios where an attack effect requires the player to choose
+         * which of the opponent's bench creatures to deal damage to.  The "bench-sniper"
+         * card mimics real cards like Heatmor (Tongue Whip) – its attack deals 0 damage
+         * to the active creature and instead asks the attacker to choose a bench target
+         * for 30 damage.
+         *
+         * P0's bench-sniper is nearly dead (60/80 damage taken, 20 HP left).
+         * P1's active basic-creature has fire energy and can finish it off next turn.
+         *
+         * Two bench targets are available:
+         *   - fieldIndex 1: fragile-pokemon  (30 HP max, currently full) → KO-able by the 30 bench snipe
+         *   - fieldIndex 2: basic-creature   (60 HP max, currently full) → only wounded
+         *
+         * With both players at 2 points, KO'ing the fragile bench immediately brings P0 to
+         * 3 points and wins the game.  Targeting the healthy bench leaves the game open and
+         * P1 counter-KOs P0's dying bench-sniper next turn to win instead.
+         */
+        it('should target near-dead bench Pokemon for a game-winning KO', () => {
+            const sniperAdapterConfig = createGameAdapterConfig(new MockCardRepository());
+
+            // Drive to the state where P0 has just attacked and now must choose a bench target.
+            // P0: bench-sniper (active, fire energy, 60 damage taken = 20 HP left)
+            // P1: basic-creature active (fire energy, can KO P0 next turn) +
+            //     fragile-pokemon bench (30 HP = exactly KO-able by bench snipe) +
+            //     basic-creature bench (60 HP = survives the snipe)
+            const initialState = createNonWaitingGameStateForMCTS(
+                StateBuilder.combine(
+                    StateBuilder.withCreatures(0, 'bench-sniper'),
+                    StateBuilder.withCreatures(1, 'basic-creature', [ 'fragile-pokemon', 'basic-creature' ]),
+                    StateBuilder.withEnergy('bench-sniper-0', { fire: 1 }),
+                    StateBuilder.withDamage('bench-sniper-0', 60), // 20 HP left – will lose if P1 gets to attack
+                    StateBuilder.withEnergy('basic-creature-1', { fire: 1 }), // P1 can counter-KO
+                    (state) => {
+                        state.points = [ 2, 2 ]; 
+                    },
+                ),
+                new MockCardRepository(),
+            );
+
+            const driver = sniperAdapterConfig.driverFactory(initialState, []);
+            driver.resume(); // → waiting=[0], P0's action turn
+            driver.handleEvent(0, new AttackResponseMessage(0), undefined); // bench-sniper attacks
+            driver.resume(); // → waiting=[0] for SelectTargetResponseMessage
+
+            const selectTargetState = driver.getState();
+
+            testBinaryChoice({
+                gameState: selectTargetState,
+                simulation: new ISMCTS<ResponseMessage, Controllers>(sniperAdapterConfig),
+                responseTypes: SELECT_TARGET_RESPONSE_TYPES,
+                // fieldIndex 1 = fragile-pokemon (30 HP) → KO → P0 wins 3-2
+                expectedAction: new SelectTargetResponseMessage([{ playerId: 1, fieldIndex: 1 }]),
+                description: 'Should snipe the fragile bench Pokemon for a game-winning KO',
+            });
+        });
+
+        it('should snipe the bench creature closest to KO when multiple are damaged', () => {
+            const sniperAdapterConfig = createGameAdapterConfig(new MockCardRepository());
+
+            // P1's bench has two creatures: one already wounded (20 HP left) and one at full health.
+            // Sniping the wounded one guarantees a KO; sniping the healthy one does not.
+            const initialState = createNonWaitingGameStateForMCTS(
+                StateBuilder.combine(
+                    StateBuilder.withCreatures(0, 'bench-sniper'),
+                    StateBuilder.withCreatures(1, 'basic-creature', [ 'basic-creature', 'basic-creature' ]),
+                    StateBuilder.withEnergy('bench-sniper-0', { fire: 1 }),
+                    StateBuilder.withDamage('bench-sniper-0', 60), // P0 active at 20 HP
+                    StateBuilder.withEnergy('basic-creature-1', { fire: 1 }), // P1 active can counter-KO
+                    StateBuilder.withDamage('basic-creature-1-0', 40), // bench[0]: 20 HP left → KO-able
+                    // bench[1] ('basic-creature-1-1') is at full 60 HP
+                    (state) => {
+                        state.points = [ 2, 2 ]; 
+                    },
+                ),
+                new MockCardRepository(),
+            );
+
+            const driver = sniperAdapterConfig.driverFactory(initialState, []);
+            driver.resume();
+            driver.handleEvent(0, new AttackResponseMessage(0), undefined);
+            driver.resume();
+
+            const selectTargetState = driver.getState();
+
+            testBinaryChoice({
+                gameState: selectTargetState,
+                simulation: new ISMCTS<ResponseMessage, Controllers>(sniperAdapterConfig),
+                responseTypes: SELECT_TARGET_RESPONSE_TYPES,
+                // fieldIndex 1 = bench[0] (already 40 damage, 20 HP left → KO by 30 snipe)
+                expectedAction: new SelectTargetResponseMessage([{ playerId: 1, fieldIndex: 1 }]),
+                description: 'Should snipe the already-damaged bench creature for a game-winning KO',
+            });
         });
     });
 });

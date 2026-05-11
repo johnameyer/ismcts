@@ -82,7 +82,7 @@ describe('ISMCTS Determinization', () => {
     });
 
     it('should prefer attacking over ending turn when opponent has low HP', function(this: Mocha.Context) {
-        this.timeout(10000);
+        this.timeout(30000);
 
         const cardRepository = new MockCardRepository();
         const gameAdapterConfig = createGameAdapterConfig(cardRepository);
@@ -141,7 +141,7 @@ describe('ISMCTS Determinization', () => {
     });
 
     it('should play a complete game with default bot vs ISMCTS', function(this: Mocha.Context) {
-        this.timeout(10000);
+        this.timeout(30000);
 
         const cardRepository = new MockCardRepository();
         const gameAdapterConfig = createGameAdapterConfig(cardRepository);

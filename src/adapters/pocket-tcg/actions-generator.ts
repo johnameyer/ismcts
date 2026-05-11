@@ -99,20 +99,23 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     }
 
     private generateSetupActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
-        const hand = handlerData.hand;
+        const hand = handlerData.hand.hand;
 
-        if (!hand) {
+        if (hand.length === 0) {
             return [];
         }
 
         // Only basic creatures can be selected during setup
         const basicCreatureCards = hand.filter(card => {
-            const c = card as { type?: string; templateId?: string };
-            if (!c || c.type !== 'creature' || typeof c.templateId !== 'string') {
+            if (card.type !== 'creature') {
                 return false;
             }
-            const creatureData = this.cardRepository.getCreature(c.templateId);
-            return creatureData && !creatureData.previousStageName; // Only basics (no previousStageName)
+            try {
+                const creatureData = this.cardRepository.getCreature(card.templateId);
+                return creatureData && !creatureData.previousStageName;
+            } catch {
+                return false;
+            }
         });
 
         if (basicCreatureCards.length === 0) {
@@ -120,17 +123,14 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         }
 
         const actions: ResponseMessage[] = [];
-        const creatureTemplateIds = basicCreatureCards.map((card: unknown) => {
-            const c = card as { templateId: string };
-            return c.templateId;
-        });
+        const creatureTemplateIds = basicCreatureCards.map(card => card.templateId);
 
         // Generate all valid setup actions:
         // 1. Each basic creature can be active
         // 2. Remaining basic creatures (up to 3) form bench (as a set, order doesn't matter)
         for (let activeIdx = 0; activeIdx < creatureTemplateIds.length; activeIdx++) {
             const activeCardId = creatureTemplateIds[activeIdx];
-            const remainingCards = creatureTemplateIds.filter((_, idx) => idx !== activeIdx);
+            const remainingCards = creatureTemplateIds.filter((templateId: string, idx: number) => idx !== activeIdx);
 
             // Generate all unique bench combinations (not permutations)
             const benchCombinations = this.generateBenchCombinations(remainingCards, Math.min(3, remainingCards.length));
@@ -180,7 +180,8 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
     private generateCreatureActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
         const actions: ResponseMessage[] = [];
-        const hand = handlerData.hand;
+        const hand = handlerData.hand.hand;
+
         const benchSize = handlerData.field.creatures[currentPlayer].length;
 
         // Can only play creatures if bench has space (max 4 total: 1 active + 3 bench)
@@ -188,28 +189,9 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             return actions;
         }
 
-        // Handle different hand structures
-        let playerHand: unknown[] = [];
-        if (Array.isArray(hand)) {
-            playerHand = hand;
-        } else if (hand && typeof hand === 'object') {
-            // If hand is a single card object, wrap it in an array
-            const handObj = hand as { templateId?: string; [key: number]: unknown };
-            if (handObj.templateId) {
-                playerHand = [ hand ];
-            } else if (handObj[currentPlayer]) {
-                // If hand is an object with player arrays
-                playerHand = (handObj[currentPlayer] as unknown[]) || [];
-            }
-        }
-
-        const creatureCards = playerHand.filter((card: unknown): card is { type: string; templateId: string } => {
-            const c = card as { type?: string; templateId?: string };
-            return c && c.type === 'creature' && typeof c.templateId === 'string';
-        });
+        const creatureCards = hand.filter(card => card.type === 'creature');
 
         creatureCards.forEach(card => {
-            // Check if it's a basic creature (can be played directly)
             const creatureData = this.cardRepository.getCreature(card.templateId);
             if (creatureData && !creatureData.previousStageName) {
                 actions.push(new PlayCardResponseMessage(card.templateId, 'creature'));
@@ -221,7 +203,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
     private generateEvolutionActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
         const actions: ResponseMessage[] = [];
-        const hand = handlerData.hand;
+        const hand = handlerData.hand.hand;
         const activeCreature = handlerData.field.creatures[currentPlayer][0];
 
         if (!activeCreature) {
@@ -245,13 +227,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             }
         }
         
-        const evolutionCards = hand.filter(card => {
-            if (card.type !== 'creature') {
-                return false;
-            }
-            // Check if this card ID is in the evolution index for the active creature
-            return possibleEvolutionIds.has(card.templateId);
-        });
+        const evolutionCards = hand.filter(card => card.type === 'creature' && possibleEvolutionIds.has(card.templateId));
 
         evolutionCards.forEach(card => {
             actions.push(new EvolveResponseMessage(card.templateId, 0));
@@ -268,7 +244,9 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             return actions;
         }
 
-        const supporterCards = handlerData.hand.filter(card => card.type === 'supporter');
+        const hand = handlerData.hand.hand;
+
+        const supporterCards = hand.filter(card => card.type === 'supporter');
         supporterCards.forEach(card => {
             actions.push(new PlayCardResponseMessage(card.templateId, 'supporter'));
         });
@@ -278,7 +256,9 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
     private generateItemActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
         const actions: ResponseMessage[] = [];
-        const itemCards = handlerData.hand.filter(card => card.type === 'item');
+        const hand = handlerData.hand.hand;
+
+        const itemCards = hand.filter(card => card.type === 'item');
 
         itemCards.forEach(card => {
             actions.push(new PlayCardResponseMessage(card.templateId, 'item'));
@@ -289,7 +269,9 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
     private generateToolActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
         const actions: ResponseMessage[] = [];
-        const toolCards = handlerData.hand.filter(card => card.type === 'tool');
+        const hand = handlerData.hand.hand;
+
+        const toolCards = hand.filter(card => card.type === 'tool');
         const creatures = handlerData.field.creatures[currentPlayer];
 
         // Tools must be attached to creatures

@@ -54,7 +54,8 @@ export function logHandlerState(cardRepository: CardRepository, state: HandlerDa
 
     const playerIndex = state.players.position;
 
-    const hand = state.hand;
+    const handData = state.hand;
+    const hand = handData.hand;
     console.log(`  Player ${playerIndex} Hand (${hand.length} cards): ${hand.map(card => card.templateId).join(', ')}`);
 }
 
