@@ -42,10 +42,10 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
          * We need to maintain the GameCard[][] structure for the full game state.
          */
         
-        const { players: _players, ...handlerDataWithoutPlayers } = handlerData as unknown as ControllerState<Controllers>;
-        
+        const handlerDataAsState = handlerData as unknown as ControllerState<Controllers>;
+
         const result = {
-            ...handlerDataWithoutPlayers,
+            ...handlerDataAsState,
             /*
              * GameStateController.getFor() returns undefined, so handlerData.state is always undefined.
              * If we pass undefined, initializeControllers falls back to initialState() = START_GAME,
@@ -59,7 +59,7 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
             state: 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS' as unknown as ControllerState<Controllers>['state'],
             deck: [ player0Cards.deck, player1Cards.deck ],
             hand: [ player0Cards.hand, player1Cards.hand ],
-            data: Array.isArray(handlerDataWithoutPlayers.data) ? handlerDataWithoutPlayers.data : [ handlerDataWithoutPlayers.data || {} ],
+            data: Array.isArray(handlerDataAsState.data) ? handlerDataAsState.data : [ handlerDataAsState.data || {} ],
         } satisfies ControllerState<Controllers>;
 
         return result;
