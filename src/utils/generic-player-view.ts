@@ -9,6 +9,8 @@ import { ControllerHandlerState, IndexedControllers } from '@cards-ts/core';
  * Note: Does NOT set turn property - that should be set by caller based on waiting controller.
  * 
  * @param extraFields - Optional extra fields to merge into the result (e.g., { state: 'ACTIONLOOP_...' })
+ * TODO: Remove extraFields once GameStateController.getFor() exposes the state machine state,
+ *       so callers don't need to manually inject it.
  */
 export function createGenericPlayerView<Controllers extends IndexedControllers>(
     controllers: Controllers,
