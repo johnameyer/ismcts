@@ -155,13 +155,13 @@ const DEFAULT_TEST_CREATURES = new Map<string, CreatureData>([
         retreatCost: 1,
         attacks: [{
             name: 'Snipe Shot',
-            description: "This attack does 30 damage to 1 of your opponent's Benched Pokemon.",
+            description: 'This attack does 30 damage to 1 of your opponent\'s Benched Pokemon.',
             damage: 0,
             energyRequirements: [{ type: 'fire' as const, amount: 1 }],
             effects: [{
                 type: 'hp' as const,
                 amount: { type: 'constant' as const, value: 30 },
-                target: { type: 'single-choice' as const, chooser: 'self' as const, criteria: { player: 'opponent' as const, location: 'field' as const, position: 'bench' as const } },
+                target: { type: 'single-choice' as const, chooser: 'self' as const, criteria: { player: 'opponent' as const, location: 'field' as const, position: 'bench' as const }},
                 operation: 'damage' as const,
             }],
         }],

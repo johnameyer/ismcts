@@ -775,7 +775,9 @@ describe('ISMCTS Binary Choice Scenarios', () => {
                     StateBuilder.withEnergy('bench-sniper-0', { fire: 1 }),
                     StateBuilder.withDamage('bench-sniper-0', 60), // 20 HP left – will lose if P1 gets to attack
                     StateBuilder.withEnergy('basic-creature-1', { fire: 1 }), // P1 can counter-KO
-                    (state) => { state.points = [ 2, 2 ]; },
+                    (state) => {
+                        state.points = [ 2, 2 ]; 
+                    },
                 ),
                 new MockCardRepository(),
             );
@@ -792,7 +794,7 @@ describe('ISMCTS Binary Choice Scenarios', () => {
                 simulation: new ISMCTS<ResponseMessage, Controllers>(sniperAdapterConfig),
                 responseTypes: SELECT_TARGET_RESPONSE_TYPES,
                 // fieldIndex 1 = fragile-pokemon (30 HP) → KO → P0 wins 3-2
-                expectedAction: new SelectTargetResponseMessage([ { playerId: 1, fieldIndex: 1 } ]),
+                expectedAction: new SelectTargetResponseMessage([{ playerId: 1, fieldIndex: 1 }]),
                 description: 'Should snipe the fragile bench Pokemon for a game-winning KO',
             });
         });
@@ -811,7 +813,9 @@ describe('ISMCTS Binary Choice Scenarios', () => {
                     StateBuilder.withEnergy('basic-creature-1', { fire: 1 }), // P1 active can counter-KO
                     StateBuilder.withDamage('basic-creature-1-0', 40), // bench[0]: 20 HP left → KO-able
                     // bench[1] ('basic-creature-1-1') is at full 60 HP
-                    (state) => { state.points = [ 2, 2 ]; },
+                    (state) => {
+                        state.points = [ 2, 2 ]; 
+                    },
                 ),
                 new MockCardRepository(),
             );
@@ -828,7 +832,7 @@ describe('ISMCTS Binary Choice Scenarios', () => {
                 simulation: new ISMCTS<ResponseMessage, Controllers>(sniperAdapterConfig),
                 responseTypes: SELECT_TARGET_RESPONSE_TYPES,
                 // fieldIndex 1 = bench[0] (already 40 damage, 20 HP left → KO by 30 snipe)
-                expectedAction: new SelectTargetResponseMessage([ { playerId: 1, fieldIndex: 1 } ]),
+                expectedAction: new SelectTargetResponseMessage([{ playerId: 1, fieldIndex: 1 }]),
                 description: 'Should snipe the already-damaged bench creature for a game-winning KO',
             });
         });
