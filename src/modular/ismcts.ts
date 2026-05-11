@@ -74,8 +74,8 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         // console.log(`[ISMCTS.getActionsFromHandlerData] Generated ${currentLegalActions.length} legal actions`);
         
         if (currentLegalActions.length === 1) {
-            // Score cannot be calculated without running simulations; 1.0 is a placeholder
-            return [{ action: currentLegalActions[0], score: 1.0 }];
+            // Score cannot be calculated without running simulations; 0.5 (neutral) is a placeholder
+            return [{ action: currentLegalActions[0], score: 0.5 }];
         }
         
         const currentPlayer = handlerData.players.position;
