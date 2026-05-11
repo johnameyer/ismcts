@@ -16,7 +16,7 @@ importers:
         version: 0.8.3(@types/node@22.19.17)
       '@cards-ts/pocket-tcg':
         specifier: github:johnameyer/pocket-tcg
-        version: https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/1f8453c64e0d0062ed1c1d0e9cd388353d0920c2(@types/node@22.19.17)
+        version: https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/4e5728831ff14692c06fd7d0e24bcc74be5daf75(@types/node@22.19.17)
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.2
@@ -78,8 +78,8 @@ packages:
     resolution: {integrity: sha512-8OD2fafFnd8TnehLgqgoq8ppfX6ctzFKQ4A9l6Jl5Y9x+/R+oZ2OAmtomzQ6zdhXtuToD/5oAPiU3/Q0fUTlyA==}
     hasBin: true
 
-  '@cards-ts/pocket-tcg@https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/1f8453c64e0d0062ed1c1d0e9cd388353d0920c2':
-    resolution: {tarball: https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/1f8453c64e0d0062ed1c1d0e9cd388353d0920c2}
+  '@cards-ts/pocket-tcg@https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/4e5728831ff14692c06fd7d0e24bcc74be5daf75':
+    resolution: {tarball: https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/4e5728831ff14692c06fd7d0e24bcc74be5daf75}
     version: 0.0.1
     hasBin: true
 
@@ -1818,7 +1818,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@cards-ts/pocket-tcg@https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/1f8453c64e0d0062ed1c1d0e9cd388353d0920c2(@types/node@22.19.17)':
+  '@cards-ts/pocket-tcg@https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/4e5728831ff14692c06fd7d0e24bcc74be5daf75(@types/node@22.19.17)':
     dependencies:
       '@cards-ts/core': https://codeload.github.com/johnameyer/cards-ts/tar.gz/0f5be7f202efde509bece0eacb9a74adacbb9f13#path:libs/core(@types/node@22.19.17)
       '@cards-ts/state-machine': 0.8.2(@types/node@22.19.17)
