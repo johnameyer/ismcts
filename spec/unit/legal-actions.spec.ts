@@ -246,6 +246,58 @@ describe('LegalActionsGenerator', () => {
         });
     });
 
+    describe('generateStadiumActions', () => {
+        it('should generate stadium actions when stadium is in hand and not yet played this turn', () => {
+            const cardRepository = new MockCardRepository();
+            const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+
+            const gameState = createWaitingGameStateForMCTS(
+                StateBuilder.combine(
+                    StateBuilder.withCreatures(0, 'basic-creature'),
+                    StateBuilder.withHand(0, [{ templateId: 'basic-stadium', type: 'stadium' }]),
+                ),
+                cardRepository,
+            );
+
+            const driver = gameAdapterConfig.driverFactory(gameState, []);
+            const controllers = driver.gameState.controllers;
+            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
+            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+
+            const stadiumActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'stadium',
+            ) as PlayCardResponseMessage[];
+
+            expect(stadiumActions).to.have.length(1);
+            expect(stadiumActions[0].templateId).to.equal('basic-stadium');
+        });
+
+        it('should not generate stadium actions when a stadium was already played this turn', () => {
+            const cardRepository = new MockCardRepository();
+            const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+
+            const gameState = createWaitingGameStateForMCTS(
+                StateBuilder.combine(
+                    StateBuilder.withCreatures(0, 'basic-creature'),
+                    StateBuilder.withHand(0, [{ templateId: 'basic-stadium', type: 'stadium' }]),
+                    (state) => {
+                        state.turnState.stadiumPlayedThisTurn = true;
+                    },
+                ),
+                cardRepository,
+            );
+
+            const driver = gameAdapterConfig.driverFactory(gameState, []);
+            const controllers = driver.gameState.controllers;
+            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
+            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+
+            const stadiumActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'stadium',
+            );
+
+            expect(stadiumActions).to.have.length(0);
+        });
+    });
+
     describe('generateLegalActions', () => {
         it('should always include EndTurnResponseMessage', () => {
             const cardRepository = new MockCardRepository();
@@ -742,5 +794,4 @@ describe('Legal Actions - Turn vs Waiting Controller', () => {
         expect(legalActions).to.be.an('array');
     });
 });
-
 

@@ -2,7 +2,7 @@ import { gameFactory } from '@cards-ts/pocket-tcg/dist/game-factory.js';
 import { HandlerChain, ControllerState } from '@cards-ts/core';
 import { CardRepository } from '@cards-ts/pocket-tcg/dist/repository/card-repository.js';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
-import type { CreatureData, SupporterData, ItemData, ToolData } from '@cards-ts/pocket-tcg/dist/repository/card-types.js';
+import type { CreatureData, SupporterData, ItemData, ToolData, StadiumData } from '@cards-ts/pocket-tcg/dist/repository/card-types.js';
 import { InstancedFieldCard } from '@cards-ts/pocket-tcg/dist/repository/card-types.js';
 import { GameParams } from '@cards-ts/pocket-tcg/dist/game-params.js';
 import { RandomDecisionStrategy } from '../../src/strategies/random-decision-strategy.js';
@@ -17,7 +17,8 @@ export class MockCardRepository extends CardRepository {
         creatures?: Map<string, CreatureData>,
         supporters?: Map<string, SupporterData>,
         items?: Map<string, ItemData>,
-        tools?: Map<string, ToolData>
+        tools?: Map<string, ToolData>,
+        stadiums?: Map<string, StadiumData>
     }) {
         // Merge default creatures with any custom ones provided
         const creatures = options?.creatures 
@@ -31,12 +32,17 @@ export class MockCardRepository extends CardRepository {
         const tools = options?.tools
             ? new Map([ ...DEFAULT_TEST_TOOLS, ...options.tools ])
             : DEFAULT_TEST_TOOLS;
+
+        const stadiums = options?.stadiums
+            ? new Map([ ...DEFAULT_TEST_STADIUMS, ...options.stadiums ])
+            : DEFAULT_TEST_STADIUMS;
         
         super(
             Object.fromEntries(creatures),
             Object.fromEntries(supporters),
             options?.items ? Object.fromEntries(options.items) : undefined,
             Object.fromEntries(tools),
+            Object.fromEntries(stadiums),
         );
     }
 }
@@ -216,6 +222,14 @@ const DEFAULT_TEST_ITEMS = new Map<string, ItemData>([
     }],
 ]);
 
+const DEFAULT_TEST_STADIUMS = new Map<string, StadiumData>([
+    [ 'basic-stadium', {
+        templateId: 'basic-stadium',
+        name: 'Basic Stadium',
+        effects: [],
+    }],
+]);
+
 /**
  * Factory function to create a CardRepository with optional custom cards.
  * If no creatures provided, includes default test creatures.
@@ -224,7 +238,8 @@ export function createMockCardRepository(options?: {
     creatures?: CreatureData[],
     supporters?: SupporterData[],
     items?: ItemData[],
-    tools?: ToolData[]
+    tools?: ToolData[],
+    stadiums?: StadiumData[]
 }): CardRepository {
     // Convert arrays to Maps for CardRepository
     const creaturesMap = new Map(DEFAULT_TEST_CREATURES);
@@ -245,12 +260,17 @@ export function createMockCardRepository(options?: {
     const toolsMap = options?.tools
         ? new Map(options.tools.map(t => [ t.templateId, t ]))
         : new Map(DEFAULT_TEST_TOOLS);
+
+    const stadiumsMap = options?.stadiums
+        ? new Map(options.stadiums.map(s => [ s.templateId, s ]))
+        : new Map(DEFAULT_TEST_STADIUMS);
     
     return new CardRepository(
         Object.fromEntries(creaturesMap),
         Object.fromEntries(supportersMap),
         Object.fromEntries(itemsMap),
         Object.fromEntries(toolsMap),
+        Object.fromEntries(stadiumsMap),
     );
 }
 
