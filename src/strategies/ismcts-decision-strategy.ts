@@ -3,6 +3,7 @@ import { ISMCTS } from '../modular/ismcts.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { GameAdapterConfig } from '../adapter-config.js';
 import { ISMCTSConfig, DEFAULT_ISMCTS_CONFIG } from '../modular/ismcts-config.js';
+import { summarizeAction } from '../utils/action-debug.js';
 import { DecisionStrategy } from './decision-strategy.js';
 import { RandomDecisionStrategy } from './random-decision-strategy.js';
 
@@ -65,6 +66,19 @@ export class ISMCTSDecisionStrategy<
             console.warn(`[ISMCTSDecisionStrategy] ISMCTS threw error (${errorMsg}), falling back to random strategy`);
             if (stackTrace) {
                 console.warn(`Stack trace:\n${stackTrace}`);
+            }
+            if (process.env.LOG_ISMCTS_FILTERED_ACTIONS === 'true') {
+                console.warn(`[ISMCTSDecisionStrategy] expectedResponseTypes: ${expectedResponseTypes.join(', ')}`);
+                try {
+                    const legalActions = this.ismcts.legalActionsGenerator.generateLegalActions(handlerData, expectedResponseTypes);
+                    console.warn(`[ISMCTSDecisionStrategy] legal actions at fallback: ${legalActions.length}`);
+                    legalActions.forEach((action, index) => {
+                        console.warn(`  [legal ${index + 1}] ${summarizeAction(action)}`);
+                    });
+                } catch (secondaryError) {
+                    const secondaryMsg = secondaryError instanceof Error ? secondaryError.message : String(secondaryError);
+                    console.warn(`[ISMCTSDecisionStrategy] could not compute legal actions for debug: ${secondaryMsg}`);
+                }
             }
             return this.randomStrategy.getAction(handlerData, expectedResponseTypes);
         }

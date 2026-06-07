@@ -3,6 +3,7 @@ import { LegalActionsGenerator } from '../legal-actions-generator.js';
 import { deepCopyState } from '../utils/deep-copy-state.js';
 import { calculateAvgScore } from '../utils/ismcts-node-utils.js';
 import { isWaiting, isWaitingForPlayer } from '../utils/waiting-state-utils.js';
+import { summarizeAction } from '../utils/action-debug.js';
 import { GameAdapterConfig } from '../adapter-config.js';
 import { printTree } from '../utils/tree-debug.js';
 import { ISMCTSRoot } from '../ismcts-node.js';
@@ -12,6 +13,8 @@ import { ISMCTSSimulation } from './simulation.js';
 import { ISMCTSExpansion } from './expansion.js';
 import { ISMCTSSelection } from './selection.js';
 import { ISMCTSConfig, DEFAULT_ISMCTS_CONFIG } from './ismcts-config.js';
+
+const ITERATION_LOG_MILESTONES = [ 10, 30, 100, 300, 1000, 3000 ];
 
 export class ISMCTS<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers> {
     public legalActionsGenerator: LegalActionsGenerator<ResponseMessage, Controllers>;
@@ -67,11 +70,8 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
     }
 
     getActionsFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): { action: ResponseMessage | null, score: number }[] {
-        // console.log(`[ISMCTS.getActionsFromHandlerData] Starting with ${responseTypes.length} response types: ${responseTypes.join(',')}`);
-        
         // Check for only one legal action - return immediately without exploration
         const currentLegalActions = this.legalActionsGenerator.generateLegalActions(handlerData, responseTypes);
-        // console.log(`[ISMCTS.getActionsFromHandlerData] Generated ${currentLegalActions.length} legal actions`);
         
         if (currentLegalActions.length === 1) {
             // Score cannot be calculated without running simulations; 0.5 (neutral) is a placeholder
@@ -79,19 +79,24 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         }
         
         const currentPlayer = handlerData.players.position;
-        // console.log(`[ISMCTS.getActionsFromHandlerData] Current player: ${currentPlayer}, starting ${config.iterations} iterations`);
+        const isLoggingEnabled = process.env.ISMCTS_ITERATION_LOG === 'true';
     
         const root = this.createRootNode();
         
         for (let i = 0; i < config.iterations; i++) {
-            // console.log(`[ISMCTS.getActionsFromHandlerData] Iteration ${i + 1}/${config.iterations}`);
             const gameState = this.determinization.determinize(handlerData);
             this.runSingleIteration(root, gameState, config.maxDepth, responseTypes, currentPlayer);
+            
+            // Log at iteration milestones
+            if (isLoggingEnabled && ITERATION_LOG_MILESTONES.includes(i + 1)) {
+                const actions = this.getAllActionsWithScores(root);
+                this.logIterationMilestone(i + 1, actions, root.children.length, currentLegalActions.length);
+            }
         }
         
-        // console.log(`[ISMCTS.getActionsFromHandlerData] Search complete, root has ${root.children.length} children`);
         const actions = this.getAllActionsWithScores(root);
-        return actions.sort((a, b) => b.score - a.score); // Sort by score descending
+        
+        return actions.sort((a, b) => b.score - a.score);
     }
 
     getBestAction(gameState: ControllerState<Controllers>, playerIndex: number, expectedResponseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): ResponseMessage | null {
@@ -104,21 +109,24 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
             throw new Error(`Game state is not waiting for player ${playerIndex}`);
         }
         
+        const isLoggingEnabled = process.env.ISMCTS_ITERATION_LOG === 'true';
+
         const root = this.createRootNode();
 
         for (let i = 0; i < config.iterations; i++) {
-            /*
-             * Deep copy state for each iteration to prevent cross-iteration contamination
-             * Process EVERY iteration independently: copy input, clean waiting, run iteration
-             */
             const iterationState = deepCopyState(waitingGameState);
-            
             this.runSingleIteration(root, iterationState, config.maxDepth, expectedResponseTypes, playerIndex);
+            
+            // Log at iteration milestones
+            if (isLoggingEnabled && ITERATION_LOG_MILESTONES.includes(i + 1)) {
+                const actions = this.getAllActionsWithScores(root);
+                this.logIterationMilestone(i + 1, actions, root.children.length, expectedResponseTypes.length);
+            }
         }
         
         const actions = this.getAllActionsWithScores(root);
         
-        return actions.sort((a, b) => b.score - a.score); // Sort by score descending
+        return actions.sort((a, b) => b.score - a.score);
     }
 
     private createRootNode(): ISMCTSRoot<ResponseMessage> {
@@ -233,27 +241,16 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         if (process.env.LOG_ISMCTS_SCORES === 'true') {
             console.log(`[ISMCTS] ${actions.length} actions evaluated:`);
             actions.slice(0, 5).forEach((a, i) => {
-                const actionType = (a.action)?.type || 'unknown';
                 const visits = a.visits || 0;
                 const score = a.score.toFixed(4);
-                
-                // Extract action params, omitting 'type' and 'components'
-                let params = '';
-                try {
-                    const actionCopy = { ...a.action };
-                    delete actionCopy.type;
-                    delete actionCopy.components;
-                    const paramEntries = Object.entries(actionCopy);
-                    if (paramEntries.length > 0) {
-                        params = '{' + paramEntries.map(([ k, v ]) => `${k}=${v}`).join(',') + '}';
-                    }
-                } catch {
-                    // Silent fail
-                }
-                
-                const paramStr = params ? ` ${params}` : '';
-                console.log(`  ${i + 1}. ${actionType}${paramStr} | score=${score} | visits=${visits}`);
+
+                const summary = a.action ? summarizeAction(a.action) : 'unknown-action';
+                console.log(`  ${i + 1}. ${summary} | score=${score} | visits=${visits}`);
             });
+
+            if (actions.length > 5) {
+                console.log(`  ... ${actions.length - 5} more actions omitted`);
+            }
         }
 
         return actions[0].action;
@@ -271,5 +268,19 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         }
         
         return root;
+    }
+
+    private logIterationMilestone(iterationCount: number, actions: { action: ResponseMessage | null, score: number }[], totalChildren: number, legalActionCount: number): void {
+        console.log(`[ITER ${iterationCount}] Actions: ${legalActionCount}, Nodes: ${totalChildren}`);
+        const sorted = [ ...actions ].sort((a, b) => b.score - a.score);
+        this.logTopActions(sorted.slice(0, 5));
+    }
+    
+    private logTopActions(actions: { action: ResponseMessage | null, score: number }[]): void {
+        actions.forEach((a, idx) => {
+            const actionSummary = a.action ? summarizeAction(a.action) : 'null';
+            const truncated = actionSummary.substring(0, 70);
+            console.log(`  ${idx + 1}. ${truncated}: ${a.score.toFixed(4)}`);
+        });
     }
 }

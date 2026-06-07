@@ -22,8 +22,9 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
      * Create a full, playable game state from Pocket-TCG HandlerData.
      * Infers opponent deck composition from visible cards.
      */
-    public determinize(handlerData: HandlerData, ourPlayerIndex: number = 0): ControllerState<Controllers> {
-        
+    public determinize(handlerData: HandlerData): ControllerState<Controllers> {
+        const ourPlayerIndex = handlerData.players.position;
+
         // Determinize both deck and hand for each player
         // For ourselves: just shuffle our known cards (we know our hand)
         const ourCards = this.determinizeOurCards(handlerData, ourPlayerIndex);
@@ -82,11 +83,11 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         
         // For deck, only count field + discard as "seen" (NOT our hand, since we know it)
         const seenCardsExcludingHand = this.getSeenCardsExcludingHand(handlerData, playerIndex);
-        
+        const targetDeckSize = handlerData.deck.sizes[playerIndex];
         const remainingCards = this.inferRemainingCards(seenCardsExcludingHand);
-        const shuffledDeck = this.shuffleArray([ ...remainingCards ]);
+        const deckCardIds = this.buildCardIdsForCount(remainingCards, targetDeckSize, seenCardsExcludingHand);
         
-        const deck = shuffledDeck.map((templateId, index) => this.createGameCard(templateId, `deck-${playerIndex}-${index}`),
+        const deck = deckCardIds.map((templateId, index) => this.createGameCard(templateId, `deck-${playerIndex}-${index}`),
         ).filter((card): card is GameCard => card !== null);
         
         return { hand, deck };
@@ -128,16 +129,11 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
      */
     private determinizeOpponentCards(handlerData: HandlerData, playerIndex: number): { deck: GameCard[], hand: GameCard[] } {
         /*
-         * We don't know the opponent's hand contents, only that they have some number of cards
-         * We need to get the opponent's hand size from somewhere else (not handlerData.hand which is our hand)
-         * For now, assume opponent has same hand size as us (this is wrong but will fix the immediate bug)
+         * We don't know the opponent's hand contents, but we do know public card counts.
+         * Keep determinization aligned with public information from controllers.
          */
-        const ourHand = handlerData.hand.hand;
-        if (!Array.isArray(ourHand)) {
-            throw new Error(`Expected handlerData.hand.hand to be GameCard[] but got ${typeof ourHand}`);
-        }
-        const ourHandSize = ourHand.length;
-        const handSize = ourHandSize; // TODO: Get actual opponent hand size from game state
+        const handSize = handlerData.hand.sizes[playerIndex];
+        const deckSize = handlerData.deck.sizes[playerIndex];
         
         // Get all possible cards that could be in opponent's hand/deck
         const seenCards = this.getSeenCards(handlerData, playerIndex);
@@ -145,11 +141,11 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         // Try smart determinization based on energy attachments if we have seen creatures
         const smartCards = this.inferSmartOpponentCards(handlerData, playerIndex, seenCards);
         const possibleCards = smartCards.length > 0 ? smartCards : this.inferRemainingCards(seenCards);
-        const shuffledCards = this.shuffleArray([ ...possibleCards ]);
+        const shuffledCards = this.buildCardIdsForCount(possibleCards, handSize + deckSize, seenCards);
         
         // Split randomly between hand and deck based on known hand size
         const handCardIds = shuffledCards.slice(0, handSize);
-        const deckCardIds = shuffledCards.slice(handSize);
+        const deckCardIds = shuffledCards.slice(handSize, handSize + deckSize);
         
         const hand = handCardIds.map((templateId, index) => this.createGameCard(templateId, `hand-${playerIndex}-${index}`),
         ).filter((card): card is GameCard => card !== null);
@@ -315,6 +311,41 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         return array;
     }
 
+    private buildCardIdsForCount(seedCards: string[], targetCount: number, seenCards: string[]): string[] {
+        if (targetCount <= 0) {
+            return [];
+        }
+
+        const fallbackPool = this.getFallbackCardPool();
+        const source = seedCards.length > 0 ? [ ...seedCards ] : [ ...seenCards ];
+        if (source.length === 0) {
+            source.push(...fallbackPool);
+        }
+
+        const result = [ ...source ];
+        let fallbackIndex = 0;
+        while (result.length < targetCount) {
+            result.push(fallbackPool[fallbackIndex % fallbackPool.length]);
+            fallbackIndex++;
+        }
+
+        return this.shuffleArray(result).slice(0, targetCount);
+    }
+
+    private getFallbackCardPool(): string[] {
+        const pool = [
+            ...this.cardRepository.getAllCreatureIds(),
+            ...this.cardRepository.getAllSupporterIds(),
+            ...this.cardRepository.getAllItemIds(),
+            ...this.cardRepository.getAllToolIds(),
+            ...this.cardRepository.getAllStadiumIds(),
+        ];
+        if (pool.length === 0) {
+            throw new Error('Card repository has no cards for determinization');
+        }
+        return pool;
+    }
+
     /**
      * Smart inference of opponent cards based on energy attachments and creature types
      * Selects 1-2 evolution chains and up to 2 creatures of matching energy types,
@@ -352,7 +383,7 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         }
         
         // Fill remaining deck with trainers, items, supporters
-        const totalNeeded = 60; // Standard deck size
+        const totalNeeded = 20; // Pocket TCG deck size
         if (selectedCards.length < totalNeeded) {
             const trainers = this.getAllTrainerItemCards(seenCards, usedCardIds);
             const remaining = totalNeeded - selectedCards.length;
