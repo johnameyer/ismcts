@@ -30,6 +30,7 @@ export default defineConfig([
             parserOptions: {
                 ecmaVersion: 2018,
                 sourceType: 'module',
+                project: ['./tsconfig.json', './tsconfig.spec.json'],
             },
         },
 
@@ -118,6 +119,9 @@ export default defineConfig([
             '@stylistic/switch-colon-spacing': 'error',
             '@stylistic/yield-star-spacing': ['error', 'both'],
             '@typescript-eslint/ban-ts-comment': 'warn',
+            '@typescript-eslint/no-unnecessary-condition': 'error',
+            '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+            '@typescript-eslint/no-non-null-assertion': 'error',
             // '@typescript-eslint/explicit-module-boundary-types': 'warn',
             '@typescript-eslint/no-empty-function': 'warn',
 
