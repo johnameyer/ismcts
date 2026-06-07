@@ -46,6 +46,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             ...this.generateSupporterActions(hd, cp),
             ...this.generateItemActions(hd, cp),
             ...this.generateToolActions(hd, cp),
+            ...this.generateStadiumActions(hd, cp),
         ],
         'use-ability-response': (hd, cp) => this.generateAbilityActions(hd, cp),
         'retreat-response': (hd, cp) => this.generateRetreatActions(hd, cp),
@@ -283,6 +284,23 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             creatures.forEach((creature, fieldIndex) => {
                 actions.push(new PlayCardResponseMessage(card.templateId, 'tool', currentPlayer, fieldIndex));
             });
+        });
+
+        return actions;
+    }
+
+    private generateStadiumActions(handlerData: HandlerData, _currentPlayer: number): ResponseMessage[] {
+        const actions: ResponseMessage[] = [];
+
+        if (handlerData.turnState.stadiumPlayedThisTurn) {
+            return actions;
+        }
+
+        const hand = handlerData.hand.hand;
+        const stadiumCards = hand.filter(card => card.type === 'stadium');
+
+        stadiumCards.forEach(card => {
+            actions.push(new PlayCardResponseMessage(card.templateId, 'stadium'));
         });
 
         return actions;
