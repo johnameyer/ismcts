@@ -4,3 +4,5 @@ tsconfig.tsbuildinfo
 npm-debug.log
 docs
 *.bak
+.playwright-mcp/
+*.png
