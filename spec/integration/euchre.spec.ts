@@ -46,11 +46,11 @@ function createTrackedStrategy(baseStrategy: RandomDecisionStrategy<ResponseMess
                     const action = value.apply(target, [ handlerData, expectedResponseTypes ]);
                     
                     if (action) {
-                        const actionType = (action).type || 'unknown';
-                        console.log(`[P${playerIndex}] getAction: expecting ${expectedResponseTypes?.join('|')} => ${actionType}`);
+                        const actionType = action.type;
+                        console.log(`[P${playerIndex}] getAction: expecting ${expectedResponseTypes.join('|')} => ${actionType}`);
                         tracker.trackEvent(playerIndex, actionType, true, true);
                     } else {
-                        console.log(`[P${playerIndex}] getAction: expecting ${expectedResponseTypes?.join('|')} => NO ACTION`);
+                        console.log(`[P${playerIndex}] getAction: expecting ${expectedResponseTypes.join('|')} => NO ACTION`);
                     }
                     
                     return action;

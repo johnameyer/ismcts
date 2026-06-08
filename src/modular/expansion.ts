@@ -73,7 +73,7 @@ export class ISMCTSExpansion<ResponseMessage extends Message, Controllers extend
             return null;
         }
         
-        if (!expectedResponseTypes || expectedResponseTypes.length === 0) {
+        if (expectedResponseTypes.length === 0) {
             return null;
         }
         

@@ -59,7 +59,7 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
             state: 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS' as unknown as ControllerState<Controllers>['state'],
             deck: [ player0Cards.deck, player1Cards.deck ],
             hand: [ player0Cards.hand, player1Cards.hand ],
-            data: Array.isArray(handlerDataAsState.data) ? handlerDataAsState.data : [ handlerDataAsState.data || {} ],
+            data: Array.isArray(handlerDataAsState.data) ? handlerDataAsState.data : [ handlerDataAsState.data ],
         } satisfies ControllerState<Controllers>;
 
         return result;
@@ -70,10 +70,7 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
      */
     private determinizeOurCards(handlerData: HandlerData, playerIndex: number): { deck: GameCard[], hand: GameCard[] } {
         const handData = handlerData.hand;
-        if (!handData || typeof handData !== 'object' || !('hand' in handData)) {
-            throw new Error(`Invalid HandlerData.hand: expected HandHandlerData but got ${typeof handData}`);
-        }
-        
+
         const currentHand = handData.hand;
         
         // For ourselves, we know exactly what's in our hand
@@ -99,27 +96,19 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         const seenCards: string[] = [];
         
         // Add cards from field (creatures in play)
-        const fieldCreatures = handlerData.field?.creatures?.[playerIndex];
-        if (!Array.isArray(fieldCreatures)) {
-            throw new Error(`Expected field.creatures[${playerIndex}] to be array but got ${typeof fieldCreatures}`);
-        }
+        const fieldCreatures = handlerData.field.creatures[playerIndex];
         fieldCreatures.forEach((card) => {
-            if (card) {
-                seenCards.push(getCurrentTemplateId(card)); 
-            }
+            seenCards.push(getCurrentTemplateId(card));
         });
-        
+
         // Add cards from discard pile
-        const discardPile = handlerData.discard?.[playerIndex];
-        if (!Array.isArray(discardPile)) {
-            throw new Error(`Expected discard[${playerIndex}] to be array but got ${typeof discardPile}`);
-        }
+        const discardPile = handlerData.discard[playerIndex];
         discardPile.forEach((card) => {
-            if (card?.templateId) {
-                seenCards.push(card.templateId); 
+            if (card.templateId) {
+                seenCards.push(card.templateId);
             }
         });
-        
+
         return seenCards;
     }
 
@@ -187,41 +176,30 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         const seenCards: string[] = [];
         
         // Add cards from field (creatures in play)
-        const fieldCreatures = handlerData.field?.creatures?.[playerIndex];
-        if (!Array.isArray(fieldCreatures)) {
-            throw new Error(`Expected field.creatures[${playerIndex}] to be array but got ${typeof fieldCreatures}`);
-        }
+        const fieldCreatures = handlerData.field.creatures[playerIndex];
         fieldCreatures.forEach(card => {
-            if (card) {
-                seenCards.push(getCurrentTemplateId(card)); 
-            }
+            seenCards.push(getCurrentTemplateId(card));
         });
-        
+
         // Add cards from discard pile
-        const discardPile = handlerData.discard?.[playerIndex];
-        if (!Array.isArray(discardPile)) {
-            throw new Error(`Expected discard[${playerIndex}] to be array but got ${typeof discardPile}`);
-        }
+        const discardPile = handlerData.discard[playerIndex];
         discardPile.forEach(card => {
-            if (card?.templateId) {
-                seenCards.push(card.templateId); 
+            if (card.templateId) {
+                seenCards.push(card.templateId);
             }
         });
-        
+
         // Only add hand cards if this is our own player (handlerData.players.position)
         if (playerIndex === handlerData.players.position) {
             const currentHand = handlerData.hand.hand;
-            if (!Array.isArray(currentHand)) {
-                throw new Error(`Expected handlerData.hand.hand to be GameCard[] but got ${typeof currentHand}`);
-            }
             const hand = currentHand as Array<{ templateId?: string }>;
             hand.forEach(card => {
-                if (card?.templateId) {
-                    seenCards.push(card.templateId); 
+                if (card.templateId) {
+                    seenCards.push(card.templateId);
                 }
             });
         }
-        
+
         return seenCards;
     }
 
@@ -321,11 +299,8 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
      * then fills with trainers/items
      */
     private inferSmartOpponentCards(handlerData: HandlerData, playerIndex: number, seenCards: string[]): string[] {
-        const fieldCreatures = handlerData.field?.creatures?.[playerIndex];
-        if (!Array.isArray(fieldCreatures)) {
-            throw new Error(`Expected field.creatures[${playerIndex}] to be array but got ${typeof fieldCreatures}`);
-        }
-        
+        const fieldCreatures = handlerData.field.creatures[playerIndex];
+
         // Need at least some visible creatures to make smart decisions
         if (fieldCreatures.length === 0) {
             return [];
@@ -372,12 +347,9 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
      */
     private getOpponentAttachedEnergyTypes(handlerData: HandlerData, playerIndex: number): string[] {
         const energyTypes = new Set<string>();
-        const fieldCreatures = handlerData.field?.creatures?.[playerIndex] || [];
-        
+        const fieldCreatures = handlerData.field.creatures[playerIndex];
+
         for (const fieldCard of fieldCreatures) {
-            if (!fieldCard) {
-                continue; 
-            }
             
             /*
              * TODO: Extract energy types from field card
@@ -398,10 +370,6 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
         
         // Score creatures by HP + total attack damage
         for (const creature of fieldCreatures) {
-            if (!creature) {
-                continue; 
-            }
-            
             const creatureId = getCurrentTemplateId(creature);
             try {
                 const cardData = this.cardRepository.getCard(creatureId);
@@ -420,10 +388,11 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
                     attackScore += (damage as number);
                 }
                 
-                const score = (hpScore as number) + attackScore;
+                const score = (hpScore) + attackScore;
                 
                 // Track this creature as a potential chain head
-                if (!chainHeads.has(creatureId) || chainHeads.get(creatureId)!.score < score) {
+                const existingHead = chainHeads.get(creatureId);
+                if (!chainHeads.has(creatureId) || (existingHead !== undefined && existingHead.score < score)) {
                     chainHeads.set(creatureId, { score, templateId: creatureId });
                 }
             } catch (error) {
@@ -483,7 +452,7 @@ export class PocketTCGDeterminization implements Determinization<Controllers> {
                 const cardData = this.cardRepository.getCreature(creatureId);
                 const hpScore = cardData.maxHp || 0;
                  
-                const attackScore = (cardData.attacks || []).reduce((sum, attack) => {
+                const attackScore = cardData.attacks.reduce((sum, attack) => {
                     const damage = typeof attack.damage === 'number' ? attack.damage : 0;
                     return sum + damage;
                 }, 0);

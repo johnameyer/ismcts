@@ -90,8 +90,10 @@ export function createActionTracker(actions: ResponseMessage[], playerPosition?:
             }
             // Shift the next action off the list
             if (actions.length > 0) {
-                const action = actions.shift()!;
-                responses.push(action);
+                const action = actions.shift();
+                if (action !== undefined) {
+                    responses.push(action);
+                }
             }
         },
     };
@@ -115,25 +117,19 @@ export function initializePassiveEffectsForTestState(
         
         for (let fieldIndex = 0; fieldIndex < playerCreatures.length; fieldIndex++) {
             const creature = playerCreatures[fieldIndex];
-            if (!creature) {
-                continue; 
-            }
-            
+
             // Get the current form of the creature (top of evolution stack)
             const currentForm = creature.evolutionStack[creature.evolutionStack.length - 1];
-            if (!currentForm) {
-                continue; 
-            }
-            
+
             try {
                 const creatureData = repository.getCreature(currentForm.templateId);
-                
+
                 // Check if creature has a passive ability
                 if (creatureData.ability && creatureData.ability.trigger.type === 'passive') {
                     // Register passive effects from the ability
                     for (const effect of creatureData.ability.effects) {
                         // Check if this is a modifier effect that should be registered as passive
-                        if ('duration' in effect && effect.duration) {
+                        if ('duration' in effect) {
                             const modifierEffect = effect as unknown as ModifierEffect;
                             
                             // Create the passive effect entry
@@ -162,52 +158,46 @@ export function initializePassiveEffectsForTestState(
      * Tools are tracked in state.tools.attachedTools as { [creatureInstanceId]: { templateId, instanceId } }
      */
     for (const [ creatureInstanceId, tool ] of Object.entries(state.tools.attachedTools)) {
-        if (!tool) {
-            continue; 
-        }
-        
         try {
             const toolData = repository.getTool(tool.templateId);
-            
-            if (toolData.effects) {
-                for (const effect of toolData.effects) {
-                    // Check if this is a modifier effect that should be registered as passive
-                    if ('duration' in effect && effect.duration) {
-                        const modifierEffect = effect as unknown as ModifierEffect;
-                        
-                        // Create the passive effect entry
-                        const passiveEffect = {
-                            id: `${state.effects.nextEffectId++}`,
-                            sourcePlayer: 0, // We need to determine which player owns this creature
-                            effectName: `${toolData.name}`,
-                            effect: modifierEffect,
-                            duration: modifierEffect.duration,
-                            createdTurn: state.turnCounter.turnNumber,
-                            toolInstanceId: tool.instanceId, // Track which tool instance this is tied to
-                            cardInstanceId: creatureInstanceId, // Track which card the tool is attached to
-                        };
-                        
-                        // Determine which player owns this creature
-                        let ownerPlayer = 0;
-                        for (let playerId = 0; playerId < state.field.creatures.length; playerId++) {
-                            const playerCreatures = state.field.creatures[playerId];
-                            for (const creature of playerCreatures) {
-                                // Check if this creature has the fieldInstanceId that matches the tool attachment
-                                if (creature && creature.fieldInstanceId === creatureInstanceId) {
-                                    ownerPlayer = playerId;
-                                    break;
-                                }
-                                // Also check evolution stack for backward compatibility
-                                if (creature && creature.evolutionStack.some(card => card.instanceId === creatureInstanceId)) {
-                                    ownerPlayer = playerId;
-                                    break;
-                                }
+
+            for (const effect of toolData.effects) {
+                // Check if this is a modifier effect that should be registered as passive
+                if ('duration' in effect) {
+                    const modifierEffect = effect as unknown as ModifierEffect;
+
+                    // Create the passive effect entry
+                    const passiveEffect = {
+                        id: `${state.effects.nextEffectId++}`,
+                        sourcePlayer: 0, // We need to determine which player owns this creature
+                        effectName: `${toolData.name}`,
+                        effect: modifierEffect,
+                        duration: modifierEffect.duration,
+                        createdTurn: state.turnCounter.turnNumber,
+                        toolInstanceId: tool.instanceId, // Track which tool instance this is tied to
+                        cardInstanceId: creatureInstanceId, // Track which card the tool is attached to
+                    };
+
+                    // Determine which player owns this creature
+                    let ownerPlayer = 0;
+                    for (let playerId = 0; playerId < state.field.creatures.length; playerId++) {
+                        const playerCreatures = state.field.creatures[playerId];
+                        for (const creature of playerCreatures) {
+                            // Check if this creature has the fieldInstanceId that matches the tool attachment
+                            if (creature.fieldInstanceId === creatureInstanceId) {
+                                ownerPlayer = playerId;
+                                break;
+                            }
+                            // Also check evolution stack for backward compatibility
+                            if (creature.evolutionStack.some(card => card.instanceId === creatureInstanceId)) {
+                                ownerPlayer = playerId;
+                                break;
                             }
                         }
-                        passiveEffect.sourcePlayer = ownerPlayer;
-                        
-                        state.effects.activePassiveEffects.push(passiveEffect);
                     }
+                    passiveEffect.sourcePlayer = ownerPlayer;
+
+                    state.effects.activePassiveEffects.push(passiveEffect);
                 }
             }
         } catch (e) {
@@ -216,31 +206,29 @@ export function initializePassiveEffectsForTestState(
     }
     
     // Initialize passive effects for stadium
-    if (state.stadium?.activeStadium) {
+    if (state.stadium.activeStadium) {
         const stadium = state.stadium.activeStadium;
-        
+
         try {
             const stadiumData = repository.getStadium(stadium.templateId);
-            
-            if (stadiumData.effects) {
-                for (const effect of stadiumData.effects) {
-                    // Check if this is a modifier effect that should be registered as passive
-                    if ('duration' in effect && effect.duration) {
-                        const modifierEffect = effect as unknown as ModifierEffect;
-                        
-                        // Create the passive effect entry
-                        const passiveEffect = {
-                            id: `${state.effects.nextEffectId++}`,
-                            sourcePlayer: stadium.owner,
-                            effectName: `${stadiumData.name}`,
-                            effect: modifierEffect,
-                            duration: modifierEffect.duration,
-                            createdTurn: state.turnCounter.turnNumber,
-                            cardInstanceId: stadium.instanceId, // Track which stadium instance this is tied to
-                        };
-                        
-                        state.effects.activePassiveEffects.push(passiveEffect);
-                    }
+
+            for (const effect of stadiumData.effects) {
+                // Check if this is a modifier effect that should be registered as passive
+                if ('duration' in effect) {
+                    const modifierEffect = effect as unknown as ModifierEffect;
+
+                    // Create the passive effect entry
+                    const passiveEffect = {
+                        id: `${state.effects.nextEffectId++}`,
+                        sourcePlayer: stadium.owner,
+                        effectName: `${stadiumData.name}`,
+                        effect: modifierEffect,
+                        duration: modifierEffect.duration,
+                        createdTurn: state.turnCounter.turnNumber,
+                        cardInstanceId: stadium.instanceId, // Track which stadium instance this is tied to
+                    };
+
+                    state.effects.activePassiveEffects.push(passiveEffect);
                 }
             }
         } catch (e) {
@@ -318,7 +306,7 @@ export function runTestGame(config: TestGameConfig): {
             config.stateCustomizer(preConfiguredState);
         }
     } else {
-        preConfiguredState = StateBuilder.createActionPhaseState(config.stateCustomizer)! as unknown as ControllerState<Controllers>;
+        preConfiguredState = StateBuilder.createActionPhaseState(config.stateCustomizer) as unknown as ControllerState<Controllers>;
     }
     
     const repository = config.customRepository || new MockCardRepository();
@@ -364,34 +352,32 @@ export function runTestGame(config: TestGameConfig): {
         // If we're in a waiting state with actions available, handle actions before resume
         const currentState = driver.getState();
 
-        if (!currentState.completed && currentState.waiting && actions.length > 0) {
+        if (!currentState.completed && actions.length > 0) {
             const waitingPositions = currentState.waiting.waiting;
-            if (waitingPositions) {
-                const positions = Array.isArray(waitingPositions) ? waitingPositions : [ waitingPositions ];
-                
-                /*
-                 * If waiting for a player action and this is an action for that player
-                 * submit the action manually so the game will then be able to resume.
-                 * If playerPosition is configured, only process actions for that player.
-                 */
-                if (positions.length > 0) {
-                    // Get the waiting player
-                    const waitingPlayer = positions[0];
-                    const targetPlayer = config.playerPosition ?? 0;
-                    
-                    // Only handle actions for the target player
-                    if (waitingPlayer !== targetPlayer) {
-                        // TODO nicer contextual error message
-                        throw new Error('Action for wrong player');
-                    }
-                    
-                    // Get the next action directly from the array
-                    const nextAction = actions.shift();
-                    if (nextAction) {
-                        const wasValidated = driver.handleEvent(waitingPlayer, nextAction, undefined);
-                        if (wasValidated) {
-                            validatedCount++;
-                        }
+            const positions = Array.isArray(waitingPositions) ? waitingPositions : [ waitingPositions ];
+
+            /*
+             * If waiting for a player action and this is an action for that player
+             * submit the action manually so the game will then be able to resume.
+             * If playerPosition is configured, only process actions for that player.
+             */
+            if (positions.length > 0) {
+                // Get the waiting player
+                const waitingPlayer = positions[0];
+                const targetPlayer = config.playerPosition ?? 0;
+
+                // Only handle actions for the target player
+                if (waitingPlayer !== targetPlayer) {
+                    // TODO nicer contextual error message
+                    throw new Error('Action for wrong player');
+                }
+
+                // Get the next action directly from the array
+                const nextAction = actions.shift();
+                if (nextAction) {
+                    const wasValidated = driver.handleEvent(waitingPlayer, nextAction, undefined);
+                    if (wasValidated) {
+                        validatedCount++;
                     }
                 }
             }
@@ -402,17 +388,15 @@ export function runTestGame(config: TestGameConfig): {
     
     // Final check: if we still have actions after the loop completes, that's an error
     const finalState = driver.getState();
-    if ((finalState.completed || finalState.waiting) && actions.length > 0) {
+    if (actions.length > 0) {
         const waitingPositions = finalState.waiting.waiting;
-        if (waitingPositions) {
-            const positions = Array.isArray(waitingPositions) ? waitingPositions : [ waitingPositions ];
-            if (positions.length > 0) {
-                // If there are actions left but we're still waiting, throw an error
-                throw new Error(
-                    `Test has ${actions.length} actions remaining but game is waiting for player(s) ${positions.join(', ')}. `
-                    + 'Actions may be for the wrong player or turn order.',
-                );
-            }
+        const positions = Array.isArray(waitingPositions) ? waitingPositions : [ waitingPositions ];
+        if (positions.length > 0) {
+            // If there are actions left but we're still waiting, throw an error
+            throw new Error(
+                `Test has ${actions.length} actions remaining but game is waiting for player(s) ${positions.join(', ')}. `
+                + 'Actions may be for the wrong player or turn order.',
+            );
         }
     }
 

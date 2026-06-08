@@ -1,4 +1,3 @@
-import { ControllerState } from '@cards-ts/core';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
 import type { GameDriver } from '../../../src/utils/driver-types.js';
@@ -48,7 +47,7 @@ export function runGameWithTracking(
         resumeCount++;
     }
 
-    const finalState = driver.getState() as ControllerState<Controllers>;
+    const finalState = driver.getState();
     const outcomeValidation = GameOutcomeValidator.assertNoTie(finalState);
 
     const gameRunResult: GameRunResult = {

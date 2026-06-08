@@ -53,9 +53,10 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
 
             // Find a card templateId known to exist in the repository to use for placeholders.
             // Prefer a card from the current player's hand; fall back to a field creature.
-            const placeholderCard = handlerData.hand.hand[0]
-                ?? handlerData.field.creatures[currentPlayer]?.[0]?.evolutionStack.at(-1)
-                ?? handlerData.field.creatures[1 - currentPlayer]?.[0]?.evolutionStack.at(-1);
+            const handCards = handlerData.hand.hand as (typeof handlerData.hand.hand[number] | undefined)[];
+            const placeholderCard = handCards[0]
+                ?? handlerData.field.creatures[currentPlayer][0]?.evolutionStack.at(-1)
+                ?? handlerData.field.creatures[1 - currentPlayer][0]?.evolutionStack.at(-1);
             const placeholderTemplateId = placeholderCard?.templateId ?? 'unknown';
             const placeholderType: GameCard['type'] = (placeholderCard as GameCard | undefined)?.type ?? 'creature';
 
@@ -72,7 +73,7 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
             const result: Partial<ControllerState<Controllers>> = {
                 ...handlerData,
                 state: ((handlerData as unknown as Record<string, unknown>).state ?? 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') as unknown as ControllerState<Controllers>['state'],
-                data: Array.isArray(handlerData.data) ? handlerData.data : [ handlerData.data || {} ],
+                data: Array.isArray(handlerData.data) ? handlerData.data : [ handlerData.data ],
                 hand,
                 deck: reconstructDeckState(handlerData, placeholderTemplateId, placeholderType),
                 players: undefined,
@@ -150,10 +151,7 @@ function findGuaranteedImmediateWinningAction(
     }
 
     const currentPlayer = handlerData.players.position;
-    const activeCreature = handlerData.field.creatures[currentPlayer]?.[0];
-    if (!activeCreature) {
-        return null;
-    }
+    const activeCreature = handlerData.field.creatures[currentPlayer][0];
 
     for (const action of legalActions) {
         if (!isGuaranteedWinningAttack(action, activeCreature, cardRepository, handlerData)) {
@@ -194,10 +192,7 @@ function isGuaranteedWinningAttack(
     }
 
     const creatureData = cardRepository.getCreature(activeTemplateId);
-    const attackData = creatureData?.attacks?.[attackIndex];
-    if (!attackData) {
-        return false;
-    }
+    const attackData = creatureData.attacks[attackIndex];
 
     if (containsCoinFlipOutcome(attackData)) {
         /*
@@ -209,7 +204,7 @@ function isGuaranteedWinningAttack(
     }
 
     // If attack resolution requires follow-up target/card selections, it is not immediate.
-    return !handlerData.turnState?.pendingSelection;
+    return !handlerData.turnState.pendingSelection;
 }
 
 function containsCoinFlipOutcome(value: unknown): boolean {

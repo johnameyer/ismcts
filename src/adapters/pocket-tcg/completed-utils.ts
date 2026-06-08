@@ -12,15 +12,7 @@ import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.j
 function playerHasFieldCards(gameState: ControllerState<Controllers>, playerIndex: number): boolean {
     const field = (gameState).field;
     
-    if (!field || !field.creatures || !Array.isArray(field.creatures)) {
-        return false;
-    }
-    
     const playerCreatures = field.creatures[playerIndex];
-    if (!Array.isArray(playerCreatures)) {
-        return false;
-    }
-    
     return playerCreatures.length > 0;
 }
 
@@ -36,8 +28,8 @@ function playerHasFieldCards(gameState: ControllerState<Controllers>, playerInde
  */
 export function isGameEnded(gameState: ControllerState<Controllers>): boolean {
     const state = gameState;
-    const points = (state.points as number[]) || [ 0, 0 ];
-    const isCompleted = state.completed || false;
+    const points = state.points as number[];
+    const isCompleted = state.completed;
     
     // Check for point-based win
     if (points[0] >= 3 || points[1] >= 3 || isCompleted) {
@@ -64,7 +56,7 @@ export function isGameEnded(gameState: ControllerState<Controllers>): boolean {
  * @returns true if the completed flag is set
  */
 export function isGameCompleted(gameState: ControllerState<Controllers>): boolean {
-    return ((gameState).completed as boolean) || false;
+    return ((gameState).completed) || false;
 }
 
 /**
@@ -75,7 +67,7 @@ export function isGameCompleted(gameState: ControllerState<Controllers>): boolea
  */
 export function hasPlayerWon(gameState: ControllerState<Controllers>): boolean {
     const state = gameState;
-    const points = (state.points as number[]) || [ 0, 0 ];
+    const points = state.points as number[];
     return points[0] >= 3 || points[1] >= 3;
 }
 
@@ -87,7 +79,7 @@ export function hasPlayerWon(gameState: ControllerState<Controllers>): boolean {
  */
 export function getWinner(gameState: ControllerState<Controllers>): number {
     const state = gameState;
-    const points = (state.points as number[]) || [ 0, 0 ];
+    const points = state.points as number[];
     if (points[0] >= 3) {
         return 0; 
     }
@@ -107,7 +99,7 @@ export function getWinner(gameState: ControllerState<Controllers>): number {
  */
 export function getRewardForPlayer(gameState: ControllerState<Controllers>, playerIndex: number): number {
     const state = gameState;
-    const points = (state.points as number[]) || [ 0, 0 ];
+    const points = state.points as number[];
     
     // Check for elimination FIRST (no field cards = loss)
     const player0HasCards = playerHasFieldCards(gameState, 0);
@@ -147,7 +139,7 @@ export function getRewardForPlayer(gameState: ControllerState<Controllers>, play
  */
 export function getTimeoutReward(gameState: ControllerState<Controllers> | ControllerHandlerState<Controllers>, playerIndex: number): number {
     const state = gameState;
-    const points = (state.points as number[]) || [ 0, 0 ];
+    const points = state.points as number[];
     
     if (playerIndex === 0) {
         if (points[0] < points[1]) {

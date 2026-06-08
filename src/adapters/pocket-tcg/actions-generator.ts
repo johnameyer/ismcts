@@ -2,6 +2,7 @@ import { HandlerData } from '@cards-ts/pocket-tcg/dist/game-handler.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
 import { CardRepository } from '@cards-ts/pocket-tcg/dist/repository/card-repository.js';
 import { InstancedFieldCard } from '@cards-ts/pocket-tcg/dist/repository/card-types.js';
+import { EnergyDictionary } from '@cards-ts/pocket-tcg/dist/controllers/energy-controller.js';
 import { ControllerState, HandlerChain } from '@cards-ts/core';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { GameSetup } from '@cards-ts/pocket-tcg/dist/game-setup.js';
@@ -61,8 +62,8 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
     generateCandidateActions(handlerData: HandlerData, currentPlayer: number, expectedResponseTypes: readonly (ResponseMessage['type'])[]): ResponseMessage[] {
         const setupState = handlerData.setup;
-        const isPlayerReady = setupState?.playersReady?.[currentPlayer] || false;
-        const isSetupComplete = setupState?.playersReady?.every(ready => ready) || false;
+        const isPlayerReady = setupState.playersReady[currentPlayer];
+        const isSetupComplete = setupState.playersReady.every(ready => ready);
 
         // Setup phase - only return setup or end-turn
         if (!isPlayerReady && !isSetupComplete) {
@@ -91,9 +92,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         const actions: ResponseMessage[] = [];
         for (const responseType of expectedResponseTypes) {
             const generator = this.responseTypeGenerators[responseType];
-            if (generator) {
-                actions.push(...generator(handlerData, currentPlayer));
-            }
+            actions.push(...generator(handlerData, currentPlayer));
         }
 
         return actions;
@@ -113,7 +112,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             }
             try {
                 const creatureData = this.cardRepository.getCreature(card.templateId);
-                return creatureData && !creatureData.previousStageName;
+                return !creatureData.previousStageName;
             } catch {
                 return false;
             }
@@ -194,7 +193,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
         creatureCards.forEach(card => {
             const creatureData = this.cardRepository.getCreature(card.templateId);
-            if (creatureData && !creatureData.previousStageName) {
+            if (!creatureData.previousStageName) {
                 actions.push(new PlayCardResponseMessage(card.templateId, 'creature'));
             }
         });
@@ -206,10 +205,6 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         const actions: ResponseMessage[] = [];
         const hand = handlerData.hand.hand;
         const activeCreature = handlerData.field.creatures[currentPlayer][0];
-
-        if (!activeCreature) {
-            return actions;
-        }
 
         const activeTemplateId = getCurrentTemplateId(activeCreature);
         const activeCreatureData = this.cardRepository.getCreature(activeTemplateId);
@@ -276,7 +271,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         const creatures = handlerData.field.creatures[currentPlayer];
 
         // Tools must be attached to creatures
-        if (!creatures || creatures.length === 0) {
+        if (creatures.length === 0) {
             return actions;
         }
 
@@ -310,14 +305,10 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         const actions: ResponseMessage[] = [];
         const activeCreature = handlerData.field.creatures[currentPlayer][0];
 
-        if (!activeCreature) {
-            return actions;
-        }
-
         const activeTemplateId = getCurrentTemplateId(activeCreature);
         const activeInstanceId = getCurrentInstanceId(activeCreature);
         const creatureData = this.cardRepository.getCreature(activeTemplateId);
-        if (!creatureData?.ability) {
+        if (!creatureData.ability) {
             return actions;
         }
 
@@ -325,7 +316,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         // Check if ability can be used (manual trigger and not used this turn)
         if (ability.trigger.type === 'manual') {
             const abilityKey = `${activeInstanceId}-0`;
-            const usedThisTurn = handlerData.turnState?.usedAbilitiesThisTurn?.includes(abilityKey);
+            const usedThisTurn = handlerData.turnState.usedAbilitiesThisTurn.includes(abilityKey);
             if (!usedThisTurn) {
                 actions.push(new UseAbilityResponseMessage(0));
             }
@@ -338,16 +329,11 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         const actions: ResponseMessage[] = [];
 
         // Check if already retreated this turn
-        if (handlerData.turnState?.retreatedThisTurn) {
+        if (handlerData.turnState.retreatedThisTurn) {
             return actions;
         }
 
         const activeCreature = handlerData.field.creatures[currentPlayer][0];
-
-        // Need active creature and at least one bench creature to retreat to
-        if (!activeCreature) {
-            return actions;
-        }
 
         if (handlerData.field.creatures[currentPlayer].length <= 1) {
             return actions;
@@ -359,17 +345,9 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
         const creatureData = this.cardRepository.getCreature(activeTemplateId);
 
-        if (!creatureData || !handlerData.energy?.attachedEnergyByInstance) {
-            return actions;
-        }
+        const attachedEnergy = handlerData.energy.attachedEnergyByInstance[activeFieldInstanceId] as EnergyDictionary | undefined;
 
-        const attachedEnergy = handlerData.energy.attachedEnergyByInstance[activeFieldInstanceId];
-
-        if (!attachedEnergy) {
-            return actions;
-        }
-
-        const totalEnergy = Object.values(attachedEnergy).reduce((sum: number, count: unknown) => sum + (typeof count === 'number' ? count : 0), 0);
+        const totalEnergy = Object.values(attachedEnergy ?? {}).reduce((sum: number, count: unknown) => sum + (typeof count === 'number' ? count : 0), 0);
 
         if (totalEnergy >= creatureData.retreatCost) {
             // Generate retreat actions for each bench creature (0-based bench indexing)
@@ -383,9 +361,6 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     }
 
     private generateEnergyActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
-        if (!handlerData.energy) {
-            return [];
-        }
 
         // First turn restriction - can't attach energy on absolute first turn
         if (handlerData.energy.isAbsoluteFirstTurn) {
@@ -401,7 +376,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         }
 
         // Need at least one creature to attach energy to
-        if (!handlerData.field.creatures[currentPlayer] || handlerData.field.creatures[currentPlayer].length === 0) {
+        if (handlerData.field.creatures[currentPlayer].length === 0) {
             return [];
         }
 
@@ -418,22 +393,14 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
          * but we should only generate actions for currentPlayer's own creatures
          */
         const playerCreatures = handlerData.field.creatures[currentPlayer];
-        if (!playerCreatures || playerCreatures.length === 0) {
+        if (playerCreatures.length === 0) {
             return actions;
         }
 
         const activeCreature = playerCreatures[0];
 
-        if (!activeCreature) {
-            return actions;
-        }
-
         const templateId = getCurrentTemplateId(activeCreature);
         const creatureData = this.cardRepository.getCreature(templateId);
-
-        if (!creatureData?.attacks) {
-            return actions;
-        }
 
         // Generate attack actions for each attack on the creature
         for (let attackIndex = 0; attackIndex < creatureData.attacks.length; attackIndex++) {
@@ -446,26 +413,14 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     }
 
     private canAttack(handlerData: HandlerData, activeCard: InstancedFieldCard, attackIndex: number = 0): boolean {
-        if (!handlerData.energy) {
-            return false;
-        }
-
         const templateId = getCurrentTemplateId(activeCard);
         const fieldInstanceId = getFieldInstanceId(activeCard);
         const creatureData = this.cardRepository.getCreature(templateId);
-        const attack = creatureData?.attacks?.[attackIndex];
+        const attack = creatureData.attacks[attackIndex];
 
-        if (!attack) {
-            return false;
-        }
+        const attachedEnergy = handlerData.energy.attachedEnergyByInstance[fieldInstanceId] as EnergyDictionary | undefined;
 
-        const attachedEnergy = handlerData.energy.attachedEnergyByInstance?.[fieldInstanceId];
-
-        if (!attachedEnergy) {
-            return false;
-        }
-
-        const totalEnergy = Object.values(attachedEnergy).reduce((sum: number, count: unknown) => sum + (typeof count === 'number' ? count : 0), 0);
+        const totalEnergy = Object.values(attachedEnergy ?? {}).reduce((sum: number, count: unknown) => sum + (typeof count === 'number' ? count : 0), 0);
 
         for (const requirement of attack.energyRequirements) {
             if (requirement.type === 'any' || requirement.type === 'colorless') {
@@ -473,7 +428,7 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
                     return false;
                 }
             } else {
-                const energyCount = attachedEnergy[requirement.type as keyof typeof attachedEnergy];
+                const energyCount = attachedEnergy?.[requirement.type as keyof typeof attachedEnergy];
                 const typeCount = typeof energyCount === 'number' ? energyCount : 0;
                 if (typeCount < requirement.amount) {
                     return false;
@@ -488,18 +443,16 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         const actions: ResponseMessage[] = [];
 
         // Check if there's a pending selection
-        if (!handlerData.turnState?.pendingSelection) {
+        if (!handlerData.turnState.pendingSelection) {
             return actions;
         }
 
         // Get all visible targets from handlerData (framework will validate team/position constraints)
         const allTargets: Array<{ playerId: number; fieldIndex: number }> = [];
         for (let playerId = 0; playerId < 2; playerId++) {
-            const playerCards = handlerData.field?.creatures?.[playerId];
-            if (playerCards) {
-                for (let fieldIndex = 0; fieldIndex < playerCards.length; fieldIndex++) {
-                    allTargets.push({ playerId, fieldIndex });
-                }
+            const playerCards = handlerData.field.creatures[playerId];
+            for (let fieldIndex = 0; fieldIndex < playerCards.length; fieldIndex++) {
+                allTargets.push({ playerId, fieldIndex });
             }
         }
 
@@ -559,8 +512,8 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
          * who is waiting to select a new active card.
          */
         
-        const playerCards = handlerData.field?.creatures?.[currentPlayer];
-        if (!playerCards || playerCards.length < 2) {
+        const playerCards = handlerData.field.creatures[currentPlayer];
+        if (playerCards.length < 2) {
             // Need at least 2 creatures: 1 active + 1 bench
             return actions;
         }
@@ -603,7 +556,7 @@ export function createPocketTCGDriverFactory(cardRepository: CardRepository): Dr
         
         // Framework type bridging - cast to any for HandlerChain creation
         /* eslint-disable @typescript-eslint/no-explicit-any */
-        const playersToUse: any = handlers && handlers.length > 0 
+        const playersToUse: any = handlers.length > 0
             ? (handlers as any[]).map(h => new HandlerChain([ h ]))
             : [
                 new HandlerChain([ noOpHandler() ]),

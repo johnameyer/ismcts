@@ -21,7 +21,7 @@ export function createGenericPlayerView<Controllers extends IndexedControllers>(
     
     // Iterate over all controllers and extract player view
     for (const [ key, controller ] of Object.entries(controllers)) {
-        if (controller && typeof controller === 'object' && 'getFor' in controller && typeof (controller).getFor === 'function') {
+        if (typeof controller === 'object' && 'getFor' in controller && typeof (controller as unknown as Record<string, unknown>).getFor === 'function') {
             // Call getFor if available (game-specific controllers)
             result[key] = (controller).getFor(playerIndex);
         } else {

@@ -13,20 +13,18 @@ export function logGameState(cardRepository: CardRepository, state: ControllerSt
     console.log(`Points: Player 0: ${state.points[0]}, Player 1: ${state.points[1]}`);
     for (let player = 0; player < 2; player++) {
         console.log(`Player ${player}:`);
-        console.log(`  Deck: ${state.deck?.[player]?.length || 0} cards remaining`);
-        const creatures = state.field?.creatures?.[player] || [];
+        console.log(`  Deck: ${state.deck[player].length} cards remaining`);
+        const creatures = state.field.creatures[player];
         creatures.forEach((creature, index) => {
-            if (creature) {
-                const templateId = getCurrentTemplateId(creature);
-                const instanceId = getFieldInstanceId(creature);
-                const maxHp = cardRepository.getCreature(templateId).maxHp;
-                const currentHp = maxHp - (creature.damageTaken || 0);
-                const currentEnergy = state.energy.attachedEnergyByInstance[instanceId];
-                console.log(`  ${index === 0 ? 'Active' : `Bench ${index}`}: ${templateId} (${currentHp}/${maxHp} HP with ${energyDictionaryToString(currentEnergy)})`);
-            }
+            const templateId = getCurrentTemplateId(creature);
+            const instanceId = getFieldInstanceId(creature);
+            const maxHp = cardRepository.getCreature(templateId).maxHp;
+            const currentHp = maxHp - creature.damageTaken;
+            const currentEnergy = state.energy.attachedEnergyByInstance[instanceId];
+            console.log(`  ${index === 0 ? 'Active' : `Bench ${index}`}: ${templateId} (${currentHp}/${maxHp} HP with ${energyDictionaryToString(currentEnergy)})`);
         });
-        
-        const hand = state.hand?.[player] || [];
+
+        const hand = state.hand[player];
         console.log(`  Hand (${hand.length} cards): ${hand.map(card => card.templateId).join(', ')}`);
     }
 }
@@ -39,16 +37,14 @@ export function logHandlerState(cardRepository: CardRepository, state: HandlerDa
     for (let player = 0; player < 2; player++) {
         console.log(`Player ${player}:`);
         // console.log(`  Deck: ${state.deck?.[player]?.length || 0} cards remaining`);
-        const creatures = state.field?.creatures?.[player] || [];
+        const creatures = state.field.creatures[player];
         creatures.forEach((creature, index: number) => {
-            if (creature) {
-                const templateId = getCurrentTemplateId(creature);
-                const instanceId = getFieldInstanceId(creature);
-                const maxHp = cardRepository.getCreature(templateId).maxHp;
-                const currentHp = maxHp - (creature.damageTaken || 0);
-                const currentEnergy = state.energy.attachedEnergyByInstance[instanceId];
-                console.log(`  ${index === 0 ? 'Active' : `Bench ${index}`}: ${templateId} (${currentHp}/${maxHp} HP with ${energyDictionaryToString(currentEnergy)})`);
-            }
+            const templateId = getCurrentTemplateId(creature);
+            const instanceId = getFieldInstanceId(creature);
+            const maxHp = cardRepository.getCreature(templateId).maxHp;
+            const currentHp = maxHp - creature.damageTaken;
+            const currentEnergy = state.energy.attachedEnergyByInstance[instanceId];
+            console.log(`  ${index === 0 ? 'Active' : `Bench ${index}`}: ${templateId} (${currentHp}/${maxHp} HP with ${energyDictionaryToString(currentEnergy)})`);
         });
     }
 
@@ -99,11 +95,11 @@ export function logMCTSTree(node: ISMCTSNode<ResponseMessage>, depth: number = 0
     
     const indent = '  '.repeat(depth);
     const avgScore = node.visits > 0 ? (node.totalReward / node.visits).toFixed(3) : 'N/A';
-    const actionStr = node.lastAction ? responseMessageToString(node.lastAction) : 'ROOT';
+    const actionStr = responseMessageToString(node.lastAction);
     
     console.log(`${indent}[${node.visits} visits, avg=${avgScore}] ${actionStr}`);
     
-    node.children?.forEach((child: ISMCTSNode<ResponseMessage>) => {
+    node.children.forEach((child: ISMCTSNode<ResponseMessage>) => {
         logMCTSTree(child, depth + 1, maxDepth);
     });
 }

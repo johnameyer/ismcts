@@ -30,18 +30,14 @@ export class EventCapturingStrategy<
         const eventType = this.extractEventType(action);
 
         // Track the event if tracker has trackEvent method
-        if (typeof (this.tracker as Record<string, unknown>).trackEvent === 'function') {
-            ((this.tracker as Record<string, unknown>).trackEvent as (playerIndex: number, eventType: string) => void)(this.playerIndex, eventType);
+        if (typeof (this.tracker).trackEvent === 'function') {
+            ((this.tracker).trackEvent as (playerIndex: number, eventType: string) => void)(this.playerIndex, eventType);
         }
 
         return action;
     }
 
     private extractEventType(action: ResponseMessage): string {
-        if (!action) {
-            return 'Unknown'; 
-        }
-
         return action.type;
     }
 }

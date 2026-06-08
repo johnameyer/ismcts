@@ -164,11 +164,11 @@ describe('ISMCTSExpansion Scenarios', () => {
 
             // First expansion
             const result1 = expansion.expand(root, waitingState, MAIN_ACTION_RESPONSE_TYPES);
-            const firstChildAction = result1?.node?.lastAction?.constructor?.name;
+            const firstChildAction = result1?.node.lastAction.constructor.name;
 
             // Second expansion
             const result2 = expansion.expand(root, waitingState, MAIN_ACTION_RESPONSE_TYPES);
-            const secondChildAction = result2?.node?.lastAction?.constructor?.name;
+            const secondChildAction = result2?.node.lastAction.constructor.name;
 
             // Should have created children
             expect(root.children.length).to.be.greaterThanOrEqual(1);
@@ -496,7 +496,7 @@ describe('ISMCTSExpansion - Edge Cases (Bug Fix Verification)', () => {
 
             if (result) {
                 expect(result.node.lastAction).to.exist;
-                expect(result.node.lastAction?.type).to.be.a('string');
+                expect(result.node.lastAction.type).to.be.a('string');
             }
         });
     });

@@ -80,14 +80,12 @@ function createTrackedStrategy(baseStrategy: DecisionStrategy<ResponseMessage, C
                     const action = (value as (handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]) => ResponseMessage).apply(target, [ handlerData, expectedResponseTypes ]);
                     
                     if (process.env.DEBUG_HANDLER === 'true') {
-                        console.log(`[Handler] P${playerIndex}.getAction called, expecting: ${expectedResponseTypes?.join(',')} => action: ${action?.type || 'null'}`);
+                        console.log(`[Handler] P${playerIndex}.getAction called, expecting: ${expectedResponseTypes.join(',')} => action: ${action.type}`);
                     }
-                    
+
                     // Track the action if one was returned
-                    if (action) {
-                        const eventType = extractEventType(action);
-                        tracker.trackEvent(playerIndex, eventType, true, true);
-                    }
+                    const eventType = extractEventType(action);
+                    tracker.trackEvent(playerIndex, eventType, true, true);
                     
                     return action;
                 };
@@ -99,10 +97,6 @@ function createTrackedStrategy(baseStrategy: DecisionStrategy<ResponseMessage, C
 }
 
 function extractEventType(action: ResponseMessage): string {
-    if (!action) {
-        return 'unknown'; 
-    }
-    
     return action.type;
 }
 

@@ -6,7 +6,7 @@ export function isWaiting<Controllers extends IndexedControllers & FrameworkCont
 ): boolean {
     const waiting = gameState.waiting as Record<string, unknown> | undefined;
     if (typeof waiting?.waiting === 'number') {
-        return (waiting.waiting as number) > 0;
+        return (waiting.waiting) > 0;
     } else if (typeof waiting?.waiting === 'object') {
         return ((waiting.waiting as unknown[]).length) > 0;
     } 
@@ -19,7 +19,7 @@ export function isWaitingForPlayer<Controllers extends IndexedControllers & Fram
 ): boolean {
     const waiting = gameState.waiting as Record<string, unknown> | undefined;
     if (typeof waiting?.waiting === 'number') {
-        return (waiting.waiting as number) > 0;
+        return (waiting.waiting) > 0;
     } else if (typeof waiting?.waiting === 'object') {
         return ((waiting.waiting as unknown[]).includes(playerIndex));
     } 

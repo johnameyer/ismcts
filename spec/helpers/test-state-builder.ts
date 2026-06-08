@@ -41,11 +41,7 @@ export function createNonWaitingGameStateForMCTS(
      * Start before the action check so resume() will transition into it
      */
     const state = StateBuilder.createActionPhaseState(combinedCustomizer);
-    
-    if (!state) {
-        throw new Error('Failed to create base action phase state');
-    }
-    
+
     // Verify state is in correct condition for MCTS
     if ((state.state as string) !== 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
         throw new Error(`Expected state ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS but got ${state.state}`);
@@ -71,10 +67,6 @@ export function createWaitingGameStateForMCTS(
     stateCustomizer: undefined | ((state: ControllerState<Controllers>) => void),
     cardRepository: CardRepository,
 ): ControllerState<Controllers> {
-    if (!cardRepository) {
-        throw new Error('cardRepository is required for createWaitingGameStateForMCTS');
-    }
-    
     // Start with non-waiting state
     const nonWaitingState = createNonWaitingGameStateForMCTS(stateCustomizer, cardRepository);
     
@@ -84,14 +76,6 @@ export function createWaitingGameStateForMCTS(
     driver.resume();
     const waitingState = driver.getState();
 
-    if (!waitingState) {
-        throw new Error('createWaitingGameStateForMCTS: driver.getState() returned undefined after resume');
-    }
-    
-    if (!waitingState.waiting) {
-        throw new Error(`createWaitingGameStateForMCTS: waiting state missing 'waiting' property. State keys: ${Object.keys(waitingState).join(', ')}`);
-    }
-    
     // Verify we got a waiting state
     const waitingArray = Array.isArray(waitingState.waiting.waiting) ? waitingState.waiting.waiting : [];
     if (waitingArray.length === 0) {

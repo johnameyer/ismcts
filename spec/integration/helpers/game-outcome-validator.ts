@@ -16,9 +16,9 @@ export class GameOutcomeValidator {
 
         // Get player points as victory metric
         const state = finalState;
-        const points = (state.points as number[]) || [ 0, 0 ];
-        const player0Points = points[0] || 0;
-        const player1Points = points[1] || 0;
+        const points = state.points as number[];
+        const player0Points = points[0];
+        const player1Points = points[1];
 
         /*
          * Check for tie: both have same points
@@ -49,30 +49,30 @@ export class GameOutcomeValidator {
 
     static getGameStats(finalState: ControllerState<Controllers>) {
         const state = finalState;
-        const points = (state.points as number[]) || [ 0, 0 ];
-        
+        const points = state.points as number[];
+
         return {
-            player0Points: points[0] || 0,
-            player1Points: points[1] || 0,
-            player0Creatures: finalState.field.creatures[0]?.length || 0,
-            player1Creatures: finalState.field.creatures[1]?.length || 0,
-            player0Hand: finalState.hand[0]?.length || 0,
-            player1Hand: finalState.hand[1]?.length || 0,
+            player0Points: points[0],
+            player1Points: points[1],
+            player0Creatures: finalState.field.creatures[0].length,
+            player1Creatures: finalState.field.creatures[1].length,
+            player0Hand: finalState.hand[0].length,
+            player1Hand: finalState.hand[1].length,
             completed: finalState.completed,
         };
     }
 
     static getFieldState(finalState: ControllerState<Controllers>, cardRepository?: CardRepository) {
         const state = finalState;
-        const maxTurns = (state.params?.maxTurns) || 30;
-        const currentTurn = (state.turnCounter?.turnNumber) || 0;
-        
+        const maxTurns = state.params.maxTurns;
+        const currentTurn = state.turnCounter.turnNumber;
+
         // Extract HP for each player's creatures
         const players: { player: number; active: { hp: number; maxHp: number } | null; bench: { hp: number; maxHp: number }[] }[] = [];
-        
+
         for (let p = 0; p < 2; p++) {
-            const fieldCreatures = finalState.field?.creatures?.[p] || [];
-            
+            const fieldCreatures = finalState.field.creatures[p];
+
             const active = fieldCreatures[0] ? this.getCreatureHP(fieldCreatures[0], cardRepository) : null;
             const bench = fieldCreatures.slice(1).map(c => this.getCreatureHP(c, cardRepository));
             
@@ -89,10 +89,10 @@ export class GameOutcomeValidator {
 
     private static getCreatureHP(creature: InstancedFieldCard, cardRepository?: CardRepository) {
         // Get the top card in evolution stack to find maxHP
-        const topCard = creature.evolutionStack?.[creature.evolutionStack.length - 1];
-        const cardData = topCard ? cardRepository?.getCreature(topCard.templateId) : null;
-        const maxHp = cardData?.maxHp || 60; // Default to 60 if we can't find card data
-        const damage = creature.damageTaken || 0;
+        const topCard = creature.evolutionStack[creature.evolutionStack.length - 1];
+        const cardData = cardRepository?.getCreature(topCard.templateId);
+        const maxHp = cardData?.maxHp ?? 60; // Default to 60 if we can't find card data
+        const damage = creature.damageTaken;
         const currentHp = Math.max(0, maxHp - damage);
         
         return { hp: currentHp, maxHp };

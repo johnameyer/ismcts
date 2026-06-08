@@ -19,7 +19,7 @@ export function getUCB1Score<ResponseMessage extends Message>(node: ISMCTSNode<R
     }
     
     const exploitation = calculateAvgScore(node);
-    const exploration = Math.sqrt(2 * Math.log(node.parent!.visits) / node.visits);
+    const exploration = Math.sqrt(2 * Math.log((node.parent?.visits) ?? 1) / node.visits);
     
     return exploitation + exploration;
 }

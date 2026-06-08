@@ -378,7 +378,7 @@ describe('LegalActionsGenerator', () => {
             const playCardActions = actions.filter(a => a instanceof PlayCardResponseMessage);
             expect(playCardActions.length).to.be.greaterThan(0, 'Should generate creature play actions');
             
-            const creatureActions = playCardActions.filter(a => (a as PlayCardResponseMessage).cardType === 'creature');
+            const creatureActions = playCardActions.filter(a => (a).cardType === 'creature');
             expect(creatureActions.length).to.equal(2, 'Should generate actions for both creatures in hand');
         });
 
@@ -405,7 +405,7 @@ describe('LegalActionsGenerator', () => {
             const handlerData = ControllerUtils.createPlayerView(controllers, 0);
             const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
 
-            const supporterActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a as PlayCardResponseMessage).cardType === 'supporter');
+            const supporterActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a).cardType === 'supporter');
             expect(supporterActions.length).to.be.greaterThan(0, 'Should generate supporter actions when available');
         });
 
@@ -432,7 +432,7 @@ describe('LegalActionsGenerator', () => {
             const handlerData = ControllerUtils.createPlayerView(controllers, 0);
             const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
 
-            const supporterActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a as PlayCardResponseMessage).cardType === 'supporter');
+            const supporterActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a).cardType === 'supporter');
             expect(supporterActions.length).to.equal(0, 'Should not generate supporter actions when already played this turn');
         });
 
@@ -515,7 +515,7 @@ describe('LegalActionsGenerator', () => {
             const handlerData = ControllerUtils.createPlayerView(controllers, 0);
             const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
 
-            const creatureActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a as PlayCardResponseMessage).cardType === 'creature');
+            const creatureActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a).cardType === 'creature');
             expect(creatureActions.length).to.equal(0, 'Should not generate creature actions when bench is full');
         });
     });
