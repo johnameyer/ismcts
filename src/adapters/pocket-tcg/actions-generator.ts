@@ -18,7 +18,11 @@ import {
     SelectTargetResponseMessage,
     SelectActiveCardResponseMessage,
     SetupCompleteResponseMessage,
+    SelectCardResponseMessage,
+    SelectEnergyResponseMessage,
+    SelectChoiceResponseMessage,
 } from '@cards-ts/pocket-tcg/dist/messages/response/index.js';
+import { isPendingCardSelection, isPendingEnergySelection, isPendingChoiceSelection } from '@cards-ts/pocket-tcg/dist/effects/pending-selection-types.js';
 import { getCurrentInstanceId, getCurrentTemplateId, getFieldInstanceId } from '@cards-ts/pocket-tcg/dist/utils/field-card-utils.js';
 import { ActionsGenerator, DriverFactory, withDeepCopyWrapper } from '../../adapter-config.js';
 
@@ -54,10 +58,11 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         'attach-energy-response': (hd, cp) => this.generateEnergyActions(hd, cp),
         'attack-response': (hd, cp) => this.generateAttackActions(hd, cp),
         'end-turn-response': () => [ new EndTurnResponseMessage() ],
-        'evolve-response': () => [],
-        'select-card-response': () => [],
-        'select-energy-response': () => [],
-        'select-choice-response': () => [],
+        'evolve-response': (hd, cp) => this.generateEvolutionActions(hd, cp),
+        'use-stadium-response': () => [],
+        'select-card-response': (hd) => this.generateSelectCardActions(hd),
+        'select-energy-response': (hd) => this.generateSelectEnergyActions(hd),
+        'select-choice-response': (hd) => this.generateSelectChoiceActions(hd),
     };
 
     generateCandidateActions(handlerData: HandlerData, currentPlayer: number, expectedResponseTypes: readonly (ResponseMessage['type'])[]): ResponseMessage[] {
@@ -204,30 +209,37 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     private generateEvolutionActions(handlerData: HandlerData, currentPlayer: number): ResponseMessage[] {
         const actions: ResponseMessage[] = [];
         const hand = handlerData.hand.hand;
-        const activeCreature = handlerData.field.creatures[currentPlayer][0];
+        const creatures = handlerData.field.creatures[currentPlayer] ?? [];
 
-        const activeTemplateId = getCurrentTemplateId(activeCreature);
-        const activeCreatureData = this.cardRepository.getCreature(activeTemplateId);
+        for (let position = 0; position < creatures.length; position++) {
+            const creature = creatures[position];
+            if (!creature) continue;
 
-        // Build evolution set by checking all creatures for previousStageName match
-        // (getEvolutionsOf not available in CardRepository, so we scan all creatures)
-        const possibleEvolutionIds = new Set<string>();
-        for (const creatureId of this.cardRepository.getAllCreatureIds()) {
+            const templateId = getCurrentTemplateId(creature);
+            let creatureData;
             try {
-                const creature = this.cardRepository.getCreature(creatureId);
-                if ((creature as Record<string, unknown>).previousStageName === activeCreatureData.name) {
-                    possibleEvolutionIds.add(creatureId);
-                }
+                creatureData = this.cardRepository.getCreature(templateId);
             } catch {
-                // Skip creatures that can't be loaded
+                continue;
             }
-        }
-        
-        const evolutionCards = hand.filter(card => card.type === 'creature' && possibleEvolutionIds.has(card.templateId));
 
-        evolutionCards.forEach(card => {
-            actions.push(new EvolveResponseMessage(card.templateId, 0));
-        });
+            const possibleEvolutionIds = new Set<string>();
+            for (const creatureId of this.cardRepository.getAllCreatureIds()) {
+                try {
+                    const evo = this.cardRepository.getCreature(creatureId);
+                    if ((evo as Record<string, unknown>).previousStageName === creatureData.name) {
+                        possibleEvolutionIds.add(creatureId);
+                    }
+                } catch {
+                    // skip
+                }
+            }
+
+            const evolutionCards = hand.filter(card => card.type === 'creature' && possibleEvolutionIds.has(card.templateId));
+            evolutionCards.forEach(card => {
+                actions.push(new EvolveResponseMessage(card.templateId, position));
+            });
+        }
 
         return actions;
     }
@@ -393,9 +405,11 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
          * but we should only generate actions for currentPlayer's own creatures
          */
         const playerCreatures = handlerData.field.creatures[currentPlayer];
-        if (playerCreatures.length === 0) {
-            return actions;
-        }
+        if (playerCreatures.length === 0) return actions;
+
+        const opponentId = 1 - currentPlayer;
+        const opponentCreatures = handlerData.field.creatures[opponentId];
+        if (!opponentCreatures?.[0]) return actions; // opponent has no active — attack would throw
 
         const activeCreature = playerCreatures[0];
 
@@ -440,44 +454,24 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     }
 
     private generateTargetSelectionActions(handlerData: HandlerData): ResponseMessage[] {
-        const actions: ResponseMessage[] = [];
+        const pendingSelection = handlerData.turnState?.pendingSelection;
+        if (!pendingSelection) return [];
 
-        // Check if there's a pending selection
-        if (!handlerData.turnState.pendingSelection) {
-            return actions;
-        }
+        // Use pre-filtered availableTargets from pendingSelection so we only
+        // generate actions for targets that the effect considers valid (e.g. bench-only for switch).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const availableTargets: Array<{ playerId: number; fieldIndex: number }> = (pendingSelection as any).availableTargets ?? [];
 
-        // Get all visible targets from handlerData (framework will validate team/position constraints)
-        const allTargets: Array<{ playerId: number; fieldIndex: number }> = [];
-        for (let playerId = 0; playerId < 2; playerId++) {
-            const playerCards = handlerData.field.creatures[playerId];
-            for (let fieldIndex = 0; fieldIndex < playerCards.length; fieldIndex++) {
-                allTargets.push({ playerId, fieldIndex });
-            }
-        }
+        if (availableTargets.length === 0) return [];
 
-        if (allTargets.length === 0) {
-            return actions;
-        }
-
-        // Get target count from pending selection (default to 1 for single-choice)
-        const pendingSelection = handlerData.turnState.pendingSelection;
         const count = pendingSelection.count || 1;
 
         if (count === 1) {
-            // Single-choice: generate one action per target
-            for (const target of allTargets) {
-                actions.push(new SelectTargetResponseMessage([ target ]));
-            }
-        } else {
-            // Multi-choice: generate all combinations of the specified count
-            const combinations = this.generateTargetCombinations(allTargets, count);
-            for (const combination of combinations) {
-                actions.push(new SelectTargetResponseMessage(combination));
-            }
+            return availableTargets.map(t => new SelectTargetResponseMessage([ t ]));
         }
 
-        return actions;
+        const combinations = this.generateTargetCombinations(availableTargets, count);
+        return combinations.map(combo => new SelectTargetResponseMessage(combo));
     }
 
     private generateTargetCombinations(targets: Array<{ playerId: number; fieldIndex: number }>, size: number): Array<Array<{ playerId: number; fieldIndex: number }>> {
@@ -530,6 +524,38 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         }
 
         return actions;
+    }
+
+    private generateSelectCardActions(handlerData: HandlerData): ResponseMessage[] {
+        const pending = handlerData.turnState?.pendingSelection;
+        if (!pending || !isPendingCardSelection(pending)) return [];
+        const count = pending.count ?? 1;
+        const cards = pending.availableCards ?? [];
+        // Generate one action per valid subset of size `count` (greedy: first N)
+        if (cards.length === 0) return [];
+        const selected = cards.slice(0, count).map(c => c.templateId);
+        return [ new SelectCardResponseMessage(selected) ];
+    }
+
+    private generateSelectEnergyActions(handlerData: HandlerData): ResponseMessage[] {
+        const pending = handlerData.turnState?.pendingSelection;
+        if (!pending || !isPendingEnergySelection(pending)) return [];
+        const count = pending.count ?? 1;
+        const options = pending.availableEnergy ?? [];
+        if (options.length === 0) return [];
+        // Generate one action per valid combination (greedy: first N)
+        const selected = options.slice(0, count).map(o => ({ playerId: o.playerId, fieldIndex: o.fieldIndex }));
+        return [ new SelectEnergyResponseMessage(selected) ];
+    }
+
+    private generateSelectChoiceActions(handlerData: HandlerData): ResponseMessage[] {
+        const pending = handlerData.turnState?.pendingSelection;
+        if (!pending || !isPendingChoiceSelection(pending)) return [];
+        const count = pending.count ?? 1;
+        const choices = pending.choices ?? [];
+        if (choices.length === 0) return [];
+        // Generate one action per choice (each individually, so ISMCTS can explore all)
+        return choices.map(c => new SelectChoiceResponseMessage([ c.value ])).slice(0, count);
     }
 }
 
