@@ -22,11 +22,9 @@ describe('ISMCTSExpansion Scenarios', () => {
         cardRepository = new MockCardRepository();
         gameAdapterConfig = getSharedTestConfig();
         legalActionsGenerator = new LegalActionsGenerator(
-            gameAdapterConfig.actionsGenerator, 
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
+            gameAdapterConfig.actionsGenerator,
         );
-        expansion = new ISMCTSExpansion(legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded);
+        expansion = new ISMCTSExpansion(legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
     });
 
     it('should expand node with available legal actions', () => {
@@ -185,11 +183,9 @@ describe('ISMCTSExpansion - Edge Cases (Bug Fix Verification)', () => {
         cardRepository = new MockCardRepository();
         const gameAdapterConfig = getSharedTestConfig();
         legalActionsGenerator = new LegalActionsGenerator(
-            gameAdapterConfig.actionsGenerator, 
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
+            gameAdapterConfig.actionsGenerator,
         );
-        expansion = new ISMCTSExpansion(legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded);
+        expansion = new ISMCTSExpansion(legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
     });
 
     describe('Waiting State Precondition (Bug Fix)', () => {
@@ -593,10 +589,8 @@ describe('ISMCTSExpansion - Response Type Capture', () => {
         const gameAdapterConfig = getSharedTestConfig();
         const legalActionsGenerator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
         );
-        expansion = new ISMCTSExpansion(legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded);
+        expansion = new ISMCTSExpansion(legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
     });
     
     it('should handle when no legal actions exist', () => {
@@ -622,11 +616,9 @@ describe('ISMCTSExpansion - Response Type Capture', () => {
         const expansion = new ISMCTSExpansion(
             new LegalActionsGenerator(
                 gameAdapterConfig.actionsGenerator,
-                gameAdapterConfig.driverFactory,
-                gameAdapterConfig.reconstructGameStateForValidation,
             ),
-            gameAdapterConfig.driverFactory,
             gameAdapterConfig.isRoundEnded,
+            gameAdapterConfig,
         );
         const result = expansion.expand(node, gameState, MAIN_ACTION_RESPONSE_TYPES);
         expect(result).to.be.null;

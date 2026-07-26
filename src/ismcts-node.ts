@@ -56,6 +56,9 @@ export type ISMCTSNode<ResponseMessage extends Message> = {
 
     /** The action that led to this node from its parent */
     lastAction: ResponseMessage;
+
+    /** Pre-computed numeric hash of lastAction — avoids repeated hashing during selection */
+    lastActionKey: number;
     
     /** Child nodes representing possible next actions from this position */
     children: ISMCTSNode<ResponseMessage>[];

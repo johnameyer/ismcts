@@ -1,6 +1,8 @@
 import { Message, IndexedControllers, ControllerHandlerState } from '@cards-ts/core';
 import { LegalActionsGenerator } from '../legal-actions-generator.js';
 import { GameAdapterConfig } from '../adapter-config.js';
+import { GameContext } from '../utils/game-context.js';
+import { FrameworkControllers } from '../ismcts-types.js';
 import { DecisionStrategy } from './decision-strategy.js';
 import { RandomDecisionStrategy } from './random-decision-strategy.js';
 
@@ -10,7 +12,7 @@ import { RandomDecisionStrategy } from './random-decision-strategy.js';
  */
 export class EnhancedRandomDecisionStrategy<
     ResponseMessage extends Message,
-    Controllers extends IndexedControllers,
+    Controllers extends IndexedControllers & FrameworkControllers,
 > implements DecisionStrategy<ResponseMessage, Controllers> {
     private legalActionsGenerator: LegalActionsGenerator<ResponseMessage, Controllers>;
 
@@ -21,17 +23,14 @@ export class EnhancedRandomDecisionStrategy<
     ) {
         this.legalActionsGenerator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
         );
         this.randomStrategy = new RandomDecisionStrategy(gameAdapterConfig);
     }
 
     getAction(handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]): ResponseMessage | null {
-        const legalActions = this.legalActionsGenerator.generateLegalActions(
-            handlerData,
-            expectedResponseTypes,
-        );
+        const state = this.gameAdapterConfig.reconstructGameStateForValidation(handlerData);
+        const ctx = new GameContext(state, this.gameAdapterConfig);
+        const legalActions = this.legalActionsGenerator.generateLegalActions(ctx, expectedResponseTypes);
 
         if (legalActions.length === 0) {
             return null;

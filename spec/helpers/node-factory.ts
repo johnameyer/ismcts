@@ -1,5 +1,6 @@
 import { Message } from '@cards-ts/core';
 import { ISMCTSNode, ISMCTSRoot } from '../../src/ismcts-node.js';
+import { getActionKey } from '../../src/utils/action-key.js';
 
 /**
  * Factory for creating properly-typed ISMCTSNode and ISMCTSRoot instances for testing.
@@ -23,6 +24,7 @@ export function createNode<T extends Message = Message>(
         totalReward: 0,
         lastPlayer,
         lastAction: action,
+        lastActionKey: getActionKey(action),
         parent: parent as ISMCTSNode<T> | ISMCTSRoot<T>,
         children,
     };
@@ -41,6 +43,7 @@ export function createNodeWithStats<T extends Message = Message>(
         totalReward,
         lastPlayer,
         lastAction: action,
+        lastActionKey: getActionKey(action),
         parent: parent as ISMCTSNode<T> | ISMCTSRoot<T>,
         children,
     };

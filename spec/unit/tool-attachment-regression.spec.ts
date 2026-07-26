@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import { ControllerUtils } from '@cards-ts/pocket-tcg/dist/utils/controller-utils.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { LegalActionsGenerator } from '../../src/legal-actions-generator.js';
+import { GameContext } from '../../src/utils/game-context.js';
 import { MAIN_ACTION_RESPONSE_TYPES } from '../../src/adapters/pocket-tcg/response-types.js';
 import { MockCardRepository } from '../helpers/test-utils.js';
 import { StateBuilder } from '../helpers/state-builder.js';
@@ -31,8 +31,6 @@ describe('Tool Attachment Validation - Regression', () => {
         gameAdapterConfig = createGameAdapterConfig(cardRepository);
         generator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
         );
     });
 
@@ -67,15 +65,11 @@ describe('Tool Attachment Validation - Regression', () => {
         expect(attachedTool).to.exist;
         expect(attachedTool?.templateId).to.equal('basic-tool');
 
-        // Create handler data view (what legal actions generator sees)
-        const handlerData = ControllerUtils.createPlayerView(controllers, 0);
+        // Build context from the mutated driver state so validation sees the tool attachment
+        const ctx = new GameContext(driver.getState(), gameAdapterConfig);
 
         // Generate legal actions
-        const legalActions = generator.generateLegalActions(
-            handlerData,
-            MAIN_ACTION_RESPONSE_TYPES,
-            true,
-        );
+        const legalActions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
         // Filter to tool actions
         const toolActions = legalActions.filter(action => action.cardType === 'tool');
@@ -114,15 +108,11 @@ describe('Tool Attachment Validation - Regression', () => {
             controllers.tools.attachTool(activeFieldId, 'basic-tool', 'tool-instance-1');
         }
 
-        // Create handler data view
-        const handlerData = ControllerUtils.createPlayerView(controllers, 0);
+        // Build context from the mutated driver state so validation sees the tool attachment
+        const ctx = new GameContext(driver.getState(), gameAdapterConfig);
 
         // Generate legal actions
-        const legalActions = generator.generateLegalActions(
-            handlerData,
-            MAIN_ACTION_RESPONSE_TYPES,
-            true,
-        );
+        const legalActions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
         // Filter to tool actions
         const toolActions = legalActions.filter(action => action.cardType === 'tool');

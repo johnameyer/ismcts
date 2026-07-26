@@ -1,5 +1,6 @@
 import { Message, IndexedControllers, ControllerHandlerState, ControllerState } from '@cards-ts/core';
 import { LegalActionsGenerator } from '../legal-actions-generator.js';
+import { GameContext } from '../utils/game-context.js';
 import { deepCopyState } from '../utils/deep-copy-state.js';
 import { calculateAvgScore } from '../utils/ismcts-node-utils.js';
 import { isWaiting, isWaitingForPlayer } from '../utils/waiting-state-utils.js';
@@ -35,43 +36,43 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         
         this.legalActionsGenerator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
         );
         this.determinization = gameAdapterConfig.determinization;
 
-        this.selection = new ISMCTSSelection(this.legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
-        this.expansion = new ISMCTSExpansion(this.legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded);
+        this.selection = new ISMCTSSelection(this.legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
+        this.expansion = new ISMCTSExpansion(this.legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
         this.simulation = new ISMCTSSimulation(gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded, gameAdapterConfig.getRoundReward, gameAdapterConfig, gameAdapterConfig.getTimeoutReward);
         this.backpropagation = new ISMCTSBackpropagation();
     }
 
     getBestActionFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): ResponseMessage | null {
-        // Check for only one legal action - return immediately
-        const currentLegalActions = this.legalActionsGenerator.generateLegalActions(handlerData, responseTypes);
-        
-        if (currentLegalActions.length === 0) {
+        // One context for early-exit check; getActionsFromHandlerData creates its own context if needed
+        const earlyCtx = new GameContext(this.gameAdapterConfig.reconstructGameStateForValidation(handlerData), this.gameAdapterConfig);
+        const earlyLegalActions = this.legalActionsGenerator.generateLegalActions(earlyCtx, responseTypes);
+
+        if (earlyLegalActions.length === 0) {
             return null;
         }
-        
-        if (currentLegalActions.length === 1) {
-            return currentLegalActions[0];
+
+        if (earlyLegalActions.length === 1) {
+            return earlyLegalActions[0];
         }
-        
+
         // Multiple legal actions - run MCTS to find best one
         const actions = this.getActionsFromHandlerData(handlerData, responseTypes, config);
-        
+
         if (actions.length === 0) {
             // No tree actions, fall back to first legal action
-            return currentLegalActions[0];
+            return earlyLegalActions[0];
         }
-        
+
         return this.selectBestFromActions(actions);
     }
 
     getActionsFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): { action: ResponseMessage | null, score: number }[] {
         // Check for only one legal action - return immediately without exploration
-        const currentLegalActions = this.legalActionsGenerator.generateLegalActions(handlerData, responseTypes);
+        const ctx = new GameContext(this.gameAdapterConfig.reconstructGameStateForValidation(handlerData), this.gameAdapterConfig);
+        const currentLegalActions = this.legalActionsGenerator.generateLegalActions(ctx, responseTypes);
         
         if (currentLegalActions.length === 1) {
             // Score cannot be calculated without running simulations; 0.5 (neutral) is a placeholder

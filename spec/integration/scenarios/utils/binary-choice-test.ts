@@ -3,8 +3,8 @@ import { ControllerState } from '@cards-ts/core';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
 import { ISMCTS } from '../../../../src/modular/ismcts.js';
-import { createGenericPlayerView } from '../../../../src/utils/generic-player-view.js';
 import { LegalActionsGenerator } from '../../../../src/legal-actions-generator.js';
+import { GameContext } from '../../../../src/utils/game-context.js';
 
 export interface BinaryChoiceTestConfig {
     /**
@@ -82,15 +82,11 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
      * First, verify that the expected action is actually legal in the initial state
      * This ensures the scenario setup is correct before running MCTS
      */
-    const driver = simulation.gameAdapterConfig.driverFactory(gameState, []);
-    const stateMachineState = driver.getState().state;
-    const handlerData = createGenericPlayerView(driver.gameState.controllers, playerIndex, { state: stateMachineState });
     const legalActionsGenerator = new LegalActionsGenerator(
         simulation.gameAdapterConfig.actionsGenerator,
-        simulation.gameAdapterConfig.driverFactory,
-        simulation.gameAdapterConfig.reconstructGameStateForValidation,
     );
-    const initialLegalActions = legalActionsGenerator.generateLegalActions(handlerData, responseTypes);
+    const ctx = new GameContext(gameState, simulation.gameAdapterConfig);
+    const initialLegalActions = legalActionsGenerator.generateLegalActions(ctx, responseTypes);
     
     const expectedActionJson = JSON.stringify(expectedAction);
     const expectedIsLegal = initialLegalActions.some(legal => JSON.stringify(legal) === expectedActionJson);

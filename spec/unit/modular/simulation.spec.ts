@@ -13,6 +13,7 @@ import { createNonWaitingGameStateForMCTS, createWaitingGameStateForMCTS } from 
 import { getSharedTestConfig, createGameAdapterConfig } from '../../helpers/test-helpers.js';
 import { MAIN_ACTION_RESPONSE_TYPES } from '../../../src/adapters/pocket-tcg/response-types.js';
 import { MockCardRepository } from '../../helpers/test-utils.js';
+import { getActionKey } from '../../../src/utils/action-key.js';
 import { deepCopyState } from '../../../src/utils/deep-copy-state.js';
 
 describe('ISMCTSSimulation Scenarios', () => {
@@ -821,24 +822,28 @@ describe('Heal Scenario Bug - Simulation Reward Consistency', () => {
         };
 
         // Create P0 end-turn node (child of root)
+        const endTurnAction = new EndTurnResponseMessage();
         const p0EndTurnNode: ISMCTSNode<ResponseMessage> = {
             visits: 0,
             totalReward: 0,
             lastPlayer: 0, // P0 made this move
             children: [],
             parent: root,
-            lastAction: new EndTurnResponseMessage(),
+            lastAction: endTurnAction,
+            lastActionKey: getActionKey(endTurnAction),
         };
         root.children.push(p0EndTurnNode);
 
         // Create P1 attack node (child of p0-end-turn)
+        const attackAction = new AttackResponseMessage(0);
         const p1AttackNode: ISMCTSNode<ResponseMessage> = {
             visits: 0,
             totalReward: 0,
             lastPlayer: 1, // P1 made this move (attacking)
             children: [],
             parent: p0EndTurnNode,
-            lastAction: new AttackResponseMessage(0),
+            lastAction: attackAction,
+            lastActionKey: getActionKey(attackAction),
         };
         p0EndTurnNode.children.push(p1AttackNode);
 
