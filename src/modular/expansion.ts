@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { Message, IndexedControllers, ControllerState } from '@cards-ts/core';
 import { LegalActionsGenerator } from '../legal-actions-generator.js';
 import { RoundEndDetector, DriverFactory } from '../adapter-config.js';
@@ -6,6 +7,8 @@ import { createGenericPlayerView } from '../utils/generic-player-view.js';
 import { applyAction } from '../utils/driver-orchestrator.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { ISMCTSNode, ISMCTSRoot } from '../ismcts-node.js';
+import { getActionKey } from '../utils/action-key.js';
+import { ValidatorFn } from '../utils/driver-orchestrator.js';
 
 /**
  * ISMCTS Expansion Phase Implementation
@@ -80,28 +83,25 @@ export class ISMCTSExpansion<ResponseMessage extends Message, Controllers extend
         // SELECT LEGAL: Generate legal actions for current determinization
         const driver = this.driverFactory(waitingState, []);
         const controllers = driver.gameState.controllers;
-        
-        // Get current player from waiting controller - ONLY reliable source for whose action we need
-        const waitingControllerState = controllers.waiting.get();
-        const currentPlayer = extractWaitingPlayer(waitingControllerState);
-        
-        
+
+        const currentPlayer = extractWaitingPlayer(controllers.waiting.get());
         if (currentPlayer < 0) {
-            // No one is waiting - should not reach here if selection properly stopped
             return null;
         }
-        
-        // CREATE player view with controllers
+
         const handlerData = createGenericPlayerView(controllers, currentPlayer);
-        
+        const validateAction: ValidatorFn<ResponseMessage> = (p, a) => driver.getValidationError(p, a);
+
         const legalActions = this.legalActionsGenerator.generateLegalActions(
             handlerData,
             expectedResponseTypes,
+            true,
+            undefined,
+            validateAction,
         );
         
-        // FILTER: Find unexplored actions
         const unexploredActions = legalActions.filter((action: ResponseMessage) => {
-            const isExplored = node.children.some(child => JSON.stringify(child.lastAction) === JSON.stringify(action));
+            const isExplored = node.children.some(c => isDeepStrictEqual(action, c.lastAction));
             if (process.env.DEBUG_EXPANSION === 'true') {
                 console.error(`[EXPANSION] action: ${action.type}, explored: ${isExplored}`);
             }
@@ -131,6 +131,7 @@ export class ISMCTSExpansion<ResponseMessage extends Message, Controllers extend
                 children: [],
                 parent: node,
                 lastAction: selectedAction,
+                lastActionKey: getActionKey(selectedAction),
             };
             
             node.children.push(newNode);

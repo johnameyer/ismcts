@@ -3,10 +3,11 @@ import { DriverFactory, GameAdapterConfig } from '../adapter-config.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { CaptureDecisionStrategy } from '../strategies/capture-decision-strategy.js';
 import type { DecisionStrategy } from '../strategies/decision-strategy.js';
-import { deepCopyState } from './deep-copy-state.js';
 import { extractWaitingPlayer } from './waiting-state-utils.js';
-import { GameDriver } from './driver-types.js';
+import type { GameDriver } from './driver-types.js';
 import { createGenericPlayerView } from './generic-player-view.js';
+
+export type ValidatorFn<ResponseMessage extends Message> = (player: number, action: ResponseMessage) => string | undefined;
 
 /**
  * Generic driver orchestration patterns for ISMCTS phases.
@@ -55,10 +56,8 @@ export function applyAction<ResponseMessage extends Message, Controllers extends
     playerIndex: number,
     driverFactory: DriverFactory<ResponseMessage, Controllers>,
 ): ControllerState<Controllers> {
-    const stateCopy = deepCopyState(gameState);
-    
-    // Use no-op handlers (empty array) for action application
-    const driver = driverFactory(stateCopy, []);
+    // driverFactory (withDeepCopyWrapper) copies state internally
+    const driver = driverFactory(gameState, []);
     
     // Get validation error BEFORE calling handleEvent (getValidationError runs validation fresh)
     const validationError = driver.getValidationError(playerIndex, action);
@@ -99,10 +98,8 @@ export function applyActionAndResume<ResponseMessage extends Message, Controller
     playerIndex: number,
     driverFactory: DriverFactory<ResponseMessage, Controllers>,
 ): ControllerState<Controllers> {
-    const stateCopy = deepCopyState(gameState);
-    
-    // Use no-op handlers (empty array) for action application and resumption
-    const driver = driverFactory(stateCopy, []);
+    // driverFactory (withDeepCopyWrapper) copies state internally
+    const driver = driverFactory(gameState, []);
     
     // Apply the action
     const wasValid = driver.handleEvent(playerIndex, action, undefined);
@@ -144,16 +141,10 @@ export function applyActionResumeAndCapture<ResponseMessage extends Message, Con
     playerIndex: number,
     gameAdapterConfig: GameAdapterConfig<ResponseMessage, Controllers>,
 ): { newGameState: ControllerState<Controllers>, capturedResponseTypes: (ResponseMessage['type'])[] } {
-    const stateCopy = deepCopyState(gameState);
-    
-    // Create capture strategy to record response types at decision point
+    // driverFactory (withDeepCopyWrapper) copies state internally
     const captureStrategy = new CaptureDecisionStrategy(gameAdapterConfig);
-    
-    // Create handler that uses capture strategy
     const captureHandler = gameAdapterConfig.createHandler(captureStrategy);
-    
-    // Create driver with capture handler for both players
-    const driver = gameAdapterConfig.driverFactory(stateCopy, [ captureHandler, captureHandler ]);
+    const driver = gameAdapterConfig.driverFactory(gameState, [ captureHandler, captureHandler ]);
     
     // Apply the action
     const wasValid = driver.handleEvent(playerIndex, action, undefined);
@@ -195,20 +186,16 @@ export function applyActionResumeAndCapture<ResponseMessage extends Message, Con
 export function getGameStateAndWaitingPlayer<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers>(
     gameState: ControllerState<Controllers>,
     driverFactory: DriverFactory<ResponseMessage, Controllers>,
-): { state: ControllerState<Controllers>, waitingPlayer: number, handlerData: ControllerHandlerState<Controllers> } {
-    const stateCopy = deepCopyState(gameState);
-    const driver = driverFactory(stateCopy, []);
-    
-    const waitingState = driver.gameState.controllers.waiting.get();
-    
-    // Use existing utility to extract waiting player (handles both number and array cases)
-    const waitingPlayer = extractWaitingPlayer(waitingState);
-    
-    // Create player view for legal action generation
+): { validateAction: ValidatorFn<ResponseMessage>, state: ControllerState<Controllers>, waitingPlayer: number, handlerData: ControllerHandlerState<Controllers> } {
+    // driverFactory (withDeepCopyWrapper) copies state internally — no need to copy here
+    const driver = driverFactory(gameState, []);
+
+    const waitingPlayer = extractWaitingPlayer(driver.gameState.controllers.waiting.get());
     const handlerData = createGenericPlayerView(driver.gameState.controllers, waitingPlayer);
-    
+
     return {
-        state: stateCopy,
+        validateAction: (player, action) => driver.getValidationError(player, action),
+        state: driver.getState(),
         waitingPlayer,
         handlerData,
     };
@@ -240,15 +227,11 @@ export function simulateToCompletion<ResponseMessage extends Message, Controller
     driverFactory: DriverFactory<ResponseMessage, Controllers>,
     maxDepth: number,
 ): ControllerState<Controllers> {
-    const stateCopy = deepCopyState(gameState);
-    
-    // Create random strategy and wrap it in handlers for both players
+    // driverFactory (withDeepCopyWrapper) copies state internally
     const randomStrategy = createRandomStrategy();
     const randomHandler = createHandler(randomStrategy);
     const handlers = [ randomHandler, randomHandler ] as unknown[];
-    
-    // Create driver with random handlers and run until completion or timeout
-    const driver = driverFactory(stateCopy, handlers);
+    const driver = driverFactory(gameState, handlers);
     
     let moveCount = 0;
     /*

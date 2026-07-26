@@ -545,12 +545,11 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         }
         const count = pending.count;
         const cards = pending.availableCards;
-        // Generate one action per valid subset of size `count` (greedy: first N)
         if (cards.length === 0) {
-            return []; 
+            return [];
         }
-        const selected = cards.slice(0, count).map(c => c.templateId);
-        return [ new SelectCardResponseMessage(selected) ];
+        const cardIds = cards.map(c => c.templateId);
+        return this.generateCombinations(cardIds, count).map(combo => new SelectCardResponseMessage(combo));
     }
 
     private generateSelectEnergyActions(handlerData: HandlerData): ResponseMessage[] {
@@ -563,9 +562,8 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         if (options.length === 0) {
             return []; 
         }
-        // Generate one action per valid combination (greedy: first N)
-        const selected = options.slice(0, count).map(o => ({ playerId: o.playerId, fieldIndex: o.fieldIndex }));
-        return [ new SelectEnergyResponseMessage(selected) ];
+        const targets = options.map(o => ({ playerId: o.playerId, fieldIndex: o.fieldIndex }));
+        return this.generateTargetCombinations(targets, count).map(combo => new SelectEnergyResponseMessage(combo));
     }
 
     private generateSelectChoiceActions(handlerData: HandlerData): ResponseMessage[] {
@@ -573,13 +571,12 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         if (!pending || !isPendingChoiceSelection(pending)) {
             return []; 
         }
-        const count = pending.count;
         const choices = pending.choices;
         if (choices.length === 0) {
-            return []; 
+            return [];
         }
-        // Generate one action per choice (each individually, so ISMCTS can explore all)
-        return choices.map(c => new SelectChoiceResponseMessage([ c.value ])).slice(0, count);
+        // One action per choice so ISMCTS explores each branch
+        return choices.map(c => new SelectChoiceResponseMessage([ c.value ]));
     }
 }
 
@@ -590,10 +587,12 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
  * Handles Pocket-TCG specific setup and game factory instantiation.
  */
 export function createPocketTCGDriverFactory(cardRepository: CardRepository): DriverFactory<ResponseMessage, Controllers> {
+    // Compute once — these are static for the lifetime of the factory
+    const factory = gameFactory(cardRepository);
+    const params = new GameSetup().getDefaultParams();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Game framework internals
     const baseFactory: DriverFactory<ResponseMessage, Controllers> = (gameState: ControllerState<Controllers>, handlers: unknown[]): any => {
-        const factory = gameFactory(cardRepository);
-        const params = new GameSetup().getDefaultParams();
         
         // Use provided handlers or create no-op handlers
         const noOpHandler = () => ({

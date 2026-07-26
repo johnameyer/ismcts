@@ -1,6 +1,6 @@
 import { ControllerState, ControllerHandlerState, Message, IndexedControllers } from '@cards-ts/core';
 import { ActionsGenerator, DriverFactory } from './adapter-config.js';
-import { validateActionWithDriver } from './utils/driver-orchestrator.js';
+import { validateActionWithDriver, ValidatorFn } from './utils/driver-orchestrator.js';
 
 /**
  * Legal Actions Generator for ISMCTS
@@ -77,7 +77,7 @@ export class LegalActionsGenerator<ResponseMessage extends Message, Controllers 
      * @param suppressValidationMessages - Whether to suppress console output during validation (default: true)
      * @returns Array of legal ResponseMessage actions for handlerData.turn player, filtered by expected response types
      */
-    generateLegalActions(handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[], suppressValidationMessages: boolean = true): ResponseMessage[] {
+    generateLegalActions(handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[], suppressValidationMessages: boolean = true, gameState?: ControllerState<Controllers>, validateAction?: ValidatorFn<ResponseMessage>): ResponseMessage[] {
         /*
          * Get current player from waiting controller (only reliable source - turn can be wrong for non-turn choices)
          * Examples: selecting active after knockout, selecting target - these happen when it's not your turn
@@ -98,7 +98,7 @@ export class LegalActionsGenerator<ResponseMessage extends Message, Controllers 
         }
 
         // Validate all candidate actions
-        const validated = this.validateActions(candidateActions, handlerData, currentPlayer, suppressValidationMessages);
+        const validated = this.validateActions(candidateActions, handlerData, currentPlayer, suppressValidationMessages, gameState, validateAction);
         
         if (process.env.DEBUG_LEGAL_ACTIONS === 'true') {
             console.error('[LegalActionsGenerator] validated count:', validated.length);
@@ -116,26 +116,18 @@ export class LegalActionsGenerator<ResponseMessage extends Message, Controllers 
         return validated;
     }
 
-    private validateActions(actions: ResponseMessage[], handlerData: ControllerHandlerState<Controllers>, currentPlayer: number, suppressValidationMessages: boolean = false): ResponseMessage[] {
-        // Reconstruct full game state from player view using config callback
-        const gameState = this.reconstructGameState(handlerData);
-        
-        // Filter actions by testing validation
+    private validateActions(actions: ResponseMessage[], handlerData: ControllerHandlerState<Controllers>, currentPlayer: number, suppressValidationMessages: boolean = false, gameState?: ControllerState<Controllers>, validateAction?: ValidatorFn<ResponseMessage>): ResponseMessage[] {
+        // Use pre-built validator if provided (avoids a redundant driverFactory copy)
+        if (!validateAction) {
+            const resolvedState = gameState ?? this.reconstructGameState(handlerData);
+            const driver = this.driverFactory(resolvedState, this.handlers);
+            validateAction = (player, action) => validateActionWithDriver(driver, player, action);
+        }
+
         return actions.filter(action => {
             try {
-                // Use the reconstructed game state that includes turnState
-                const testState = JSON.parse(JSON.stringify(gameState));
-                
-                // Create test driver using the injected factory
-                const testDriver = this.driverFactory(testState, this.handlers);
-
-                // Test if the action is valid using helper that correctly accesses validators directly
-                const validationError = validateActionWithDriver(testDriver, currentPlayer, action);
-                const isValid = !validationError;
-                
-                return isValid;
+                return !validateAction(currentPlayer, action);
             } catch (error) {
-                // Action failed validation
                 if (process.env.DEBUG_LEGAL_ACTIONS === 'true') {
                     console.error('[LegalActionsGenerator] validation threw:', (error as Error).message);
                 }

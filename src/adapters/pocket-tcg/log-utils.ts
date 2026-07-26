@@ -65,7 +65,7 @@ export function responseMessageToString(message: ResponseMessage | undefined): s
     } else if (message.type === 'play-card-response') {
         return `Play ${message.templateId} to ${message.targetPlayerId} ${message.targetFieldIndex}`;
     } else if (message.type === 'evolve-response') {
-        return `Evolve ${message.position} to ${message.evolutionId}`;
+        return `Evolve ${message.position} to ${message.evolutionTemplateId}`;
     } else if (message.type === 'attack-response') {
         return `Attack with ${message.attackIndex}`;
     } else if (message.type === 'end-turn-response') {

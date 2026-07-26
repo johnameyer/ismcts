@@ -1,7 +1,7 @@
+import { isDeepStrictEqual } from 'node:util';
 import { Message, IndexedControllers, ControllerState } from '@cards-ts/core';
 import { LegalActionsGenerator } from '../legal-actions-generator.js';
 import { getUCB1Score } from '../utils/ismcts-node-utils.js';
-import { deepCopyState } from '../utils/deep-copy-state.js';
 import { isWaiting } from '../utils/waiting-state-utils.js';
 import { applyActionResumeAndCapture, getGameStateAndWaitingPlayer } from '../utils/driver-orchestrator.js';
 import { RoundEndDetector, DriverFactory, GameAdapterConfig } from '../adapter-config.js';
@@ -112,13 +112,13 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
         }
 
         let currentNode = root;
-        let currentGameState = deepCopyState(currentState);
+        let currentGameState = currentState;
         let latestResponseTypes = expectedResponseTypes;
         const selectionDepth = 0;
         
         for (;;) {
-            // GET LEGAL: Generate valid actions for current state (which is waiting)
-            const { state: gameState, waitingPlayer: currentPlayer, handlerData } = getGameStateAndWaitingPlayer(currentGameState, this.driverFactory);
+            // GET LEGAL: one driver creation covers both state inspection and action validation
+            const { validateAction, state: gameState, waitingPlayer: currentPlayer, handlerData } = getGameStateAndWaitingPlayer(currentGameState, this.driverFactory);
 
             // Check if round is completed before generating legal actions
             if (this.isRoundEnded(gameState)) {
@@ -128,21 +128,16 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
             if (currentPlayer < 0) {
                 throw new Error('Not waiting for any player?');
             }
+
+            // Reuse the validator from getGameStateAndWaitingPlayer — avoids a second driverFactory copy
+            const legalActions = this.legalActionsGenerator.generateLegalActions(handlerData, latestResponseTypes, true, gameState, validateAction);
             
-            // Use expected response types for this decision point
-            const legalActions = this.legalActionsGenerator.generateLegalActions(handlerData, latestResponseTypes);
-            
-            // FILTER: Only consider children with currently legal actions
-            const validChildren = currentNode.children.filter(child => {
-                const isLegal = legalActions.some(legal => legal.constructor.name === child.lastAction.constructor.name
-                    && JSON.stringify(legal) === JSON.stringify(child.lastAction),
-                );
-                return isLegal;
-            });
-            
-            // CHECK: Find unexplored legal actions
-            const exploredActions = validChildren.map(child => child.lastAction);
-            const unexploredActions = legalActions.filter(action => !exploredActions.some(explored => JSON.stringify(explored) === JSON.stringify(action)),
+            // FILTER: children with an action matching any current legal action
+            const validChildren = currentNode.children.filter(child => legalActions.some(a => isDeepStrictEqual(a, child.lastAction)),
+            );
+
+            // CHECK: legal actions not yet explored as children
+            const unexploredActions = legalActions.filter(action => !validChildren.some(child => isDeepStrictEqual(action, child.lastAction)),
             );
             
             // If there are unexplored actions, break for expansion
@@ -170,7 +165,6 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
             );
             
             currentGameState = newGameState;
-            currentGameState = deepCopyState(currentGameState);
             latestResponseTypes = capturedResponseTypes as readonly (ResponseMessage['type'])[];
             currentNode = selectedChild;
             
