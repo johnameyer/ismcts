@@ -48,8 +48,8 @@ export type ISMCTSNode<ResponseMessage extends Message> = {
     /** Cumulative reward from all simulations passing through this node */
     totalReward: number;
     
-    /** Parent node in the search tree */
-    parent: ISMCTSNode<ResponseMessage> | ISMCTSRoot<ResponseMessage>;
+    /** Parent node in the search tree (undefined only for test-created isolated nodes) */
+    parent?: ISMCTSNode<ResponseMessage> | ISMCTSRoot<ResponseMessage>;
     
     /** The player who made the move creating this node (use for reward perspective) */
     lastPlayer: number;

@@ -321,7 +321,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
             expect(JSON.stringify(gameState)).to.equal(stateSnapshot, 'Input state JSON should be identical');
             expect(gameState.points).to.deep.equal(pointsSnapshot, 'Points should not change');
             expect(gameState.turn).to.equal(turnSnapshot, 'Turn should not change');
-            const waitingSnapshotAfter = Array.isArray(gameState.waiting?.waiting) 
+            const waitingSnapshotAfter = Array.isArray(gameState.waiting.waiting) 
                 ? gameState.waiting.waiting.length 
                 : 0;
             expect(waitingSnapshotAfter).to.equal(waitingSnapshotBefore, 'Input waiting should not change');
@@ -354,7 +354,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
             const { state: selectedState } = selection.select(root, gameState, MAIN_ACTION_RESPONSE_TYPES);
 
             // Returned state should be paused at decision point
-            const waitingArray = Array.isArray(selectedState.waiting?.waiting) ? selectedState.waiting.waiting : [];
+            const waitingArray = Array.isArray(selectedState.waiting.waiting) ? selectedState.waiting.waiting : [];
             expect(waitingArray.length).to.be.greaterThan(0, 'Selected state should have waiting set for expansion');
         });
     });
@@ -394,7 +394,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
             expect(result.state).to.exist;
             
             // Returned state should be paused at decision point (resume was called)
-            const waitingArray = Array.isArray(result.state.waiting?.waiting) ? result.state.waiting.waiting : [];
+            const waitingArray = Array.isArray(result.state.waiting.waiting) ? result.state.waiting.waiting : [];
             expect(waitingArray.length).to.be.greaterThan(0, 'Root selection should return action-ready state');
         });
 
@@ -427,7 +427,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
                 const { node: selectedNode, state: selectedState } = selection.select(root, stateCopy, MAIN_ACTION_RESPONSE_TYPES);
                 
                 expect(selectedNode).to.exist;
-                const waitingArray = Array.isArray(selectedState.waiting?.waiting) ? selectedState.waiting.waiting : [];
+                const waitingArray = Array.isArray(selectedState.waiting.waiting) ? selectedState.waiting.waiting : [];
                 expect(waitingArray.length).to.be.greaterThan(0, `Iteration ${i + 1}: selected state should have waiting`);
             }
         });
@@ -471,7 +471,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
                 expect(result.state).to.exist;
                 
                 // Input should still be unchanged
-                const inputWaitingLength = Array.isArray(gameState.waiting?.waiting) 
+                const inputWaitingLength = Array.isArray(gameState.waiting.waiting) 
                     ? gameState.waiting.waiting.length 
                     : 0;
                 expect(inputWaitingLength).to.be.greaterThan(0, `After iteration ${i + 1}: input waiting should remain set`);
@@ -515,7 +515,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
             expect(selectedNode).to.exist;
             
             // Verify state is valid (would fail if extra resume caused issues)
-            const waitingArray = Array.isArray(selectedState.waiting?.waiting) ? selectedState.waiting.waiting : [];
+            const waitingArray = Array.isArray(selectedState.waiting.waiting) ? selectedState.waiting.waiting : [];
             expect(waitingArray.length).to.be.greaterThan(0);
         });
     });
@@ -547,7 +547,7 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
             );
 
             // Snapshot base state waiting
-            const baseWaitingLengthInitial = Array.isArray(baseState.waiting?.waiting) 
+            const baseWaitingLengthInitial = Array.isArray(baseState.waiting.waiting) 
                 ? baseState.waiting.waiting.length 
                 : 0;
             const basePointsInitial = JSON.parse(JSON.stringify(baseState.points));
@@ -560,10 +560,10 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
                 
                 expect(result.node).to.exist;
                 expect(result.state).to.exist;
-                expect(result.state.waiting?.waiting).to.exist;
+                expect(result.state.waiting.waiting).to.exist;
                 
                 // Base state should be completely unchanged
-                const baseWaitingLength = Array.isArray(baseState.waiting?.waiting) 
+                const baseWaitingLength = Array.isArray(baseState.waiting.waiting) 
                     ? baseState.waiting.waiting.length
                     : 0;
                 expect(baseWaitingLength).to.equal(baseWaitingLengthInitial, `After iteration ${i + 1}: base state waiting corrupted`);

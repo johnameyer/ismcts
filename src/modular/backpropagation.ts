@@ -59,19 +59,18 @@ export class ISMCTSBackpropagation<ResponseMessage extends Message> {
             const parent: ISMCTSNode<ResponseMessage> | ISMCTSRoot<ResponseMessage> | undefined = current.parent;
             
             // Check if parent is a regular node (not root, not undefined)
-            if (parent && 'lastPlayer' in parent) {
+            if (parent !== undefined && 'lastPlayer' in parent) {
                 // Parent is a regular node - check if player changed
                 const playerChanged = parent.lastPlayer !== current.lastPlayer;
                 if (playerChanged) {
                     currentReward = 1 - currentReward; // Negate only when player changes
                 }
                 current = parent; // Move to parent in next iteration
-            } else if (parent && !('lastPlayer' in parent)) {
+            } else if (parent !== undefined) {
                 // Parent is root - stop here after updating root visits
                 parent.visits++;
                 current = undefined; // Stop backprop
             } else {
-                // No parent - reached top
                 current = undefined;
             }
         }

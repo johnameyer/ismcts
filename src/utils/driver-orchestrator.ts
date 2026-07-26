@@ -58,7 +58,7 @@ export function applyAction<ResponseMessage extends Message, Controllers extends
     const stateCopy = deepCopyState(gameState);
     
     // Use no-op handlers (empty array) for action application
-    const driver = driverFactory(stateCopy, []) as GameDriver<ResponseMessage, Controllers>;
+    const driver = driverFactory(stateCopy, []);
     
     // Get validation error BEFORE calling handleEvent (getValidationError runs validation fresh)
     const validationError = driver.getValidationError(playerIndex, action);
@@ -102,7 +102,7 @@ export function applyActionAndResume<ResponseMessage extends Message, Controller
     const stateCopy = deepCopyState(gameState);
     
     // Use no-op handlers (empty array) for action application and resumption
-    const driver = driverFactory(stateCopy, []) as GameDriver<ResponseMessage, Controllers>;
+    const driver = driverFactory(stateCopy, []);
     
     // Apply the action
     const wasValid = driver.handleEvent(playerIndex, action, undefined);
@@ -153,7 +153,7 @@ export function applyActionResumeAndCapture<ResponseMessage extends Message, Con
     const captureHandler = gameAdapterConfig.createHandler(captureStrategy);
     
     // Create driver with capture handler for both players
-    const driver = gameAdapterConfig.driverFactory(stateCopy, [ captureHandler, captureHandler ]) as GameDriver<ResponseMessage, Controllers>;
+    const driver = gameAdapterConfig.driverFactory(stateCopy, [ captureHandler, captureHandler ]);
     
     // Apply the action
     const wasValid = driver.handleEvent(playerIndex, action, undefined);
@@ -169,7 +169,7 @@ export function applyActionResumeAndCapture<ResponseMessage extends Message, Con
     
     return {
         newGameState: driver.getState(),
-        capturedResponseTypes: capturedResponseTypes as (ResponseMessage['type'])[],
+        capturedResponseTypes: capturedResponseTypes,
     };
 }
 
@@ -197,7 +197,7 @@ export function getGameStateAndWaitingPlayer<ResponseMessage extends Message, Co
     driverFactory: DriverFactory<ResponseMessage, Controllers>,
 ): { state: ControllerState<Controllers>, waitingPlayer: number, handlerData: ControllerHandlerState<Controllers> } {
     const stateCopy = deepCopyState(gameState);
-    const driver = driverFactory(stateCopy, []) as GameDriver<ResponseMessage, Controllers>;
+    const driver = driverFactory(stateCopy, []);
     
     const waitingState = driver.gameState.controllers.waiting.get();
     
@@ -248,7 +248,7 @@ export function simulateToCompletion<ResponseMessage extends Message, Controller
     const handlers = [ randomHandler, randomHandler ] as unknown[];
     
     // Create driver with random handlers and run until completion or timeout
-    const driver = driverFactory(stateCopy, handlers) as GameDriver<ResponseMessage, Controllers>;
+    const driver = driverFactory(stateCopy, handlers);
     
     let moveCount = 0;
     /*

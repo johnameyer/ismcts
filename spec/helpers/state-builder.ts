@@ -101,6 +101,7 @@ export class StateBuilder {
             effects: {
                 immediatelyPendingEffects: [],
                 activePassiveEffects: [],
+                scheduledDelayedEffects: [],
                 nextEffectId: 0,
             },
             cardRepository: {},
@@ -139,9 +140,6 @@ export class StateBuilder {
     static withGameState(stateName: 'START_GAME' | 'END_GAME' | 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
         return (state: ControllerState<Controllers>) => {
              
-            if (stateName !== 'START_GAME' && stateName !== 'END_GAME' && stateName !== 'ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS') {
-                throw new Error(`Invalid state name: ${stateName}. Must be START_GAME, END_GAME, or ACTIONLOOP_IF_NOT_CHECKPENDINGSELECTIONS`);
-            }
             state.state = stateName as unknown as typeof state.state;
             
             // Adjust setup based on state
@@ -262,7 +260,7 @@ export class StateBuilder {
     static withStatusEffect(player: number, effect: string) {
         return (state: ControllerState<Controllers>) => {
             // Convert string to StatusEffectType enum
-            const statusEffectMap: Record<string, StatusEffectType> = {
+            const statusEffectMap: Partial<Record<string, StatusEffectType>> = {
                 sleep: StatusEffectType.ASLEEP,
                 burn: StatusEffectType.BURNED,
                 confusion: StatusEffectType.CONFUSED,
@@ -273,10 +271,6 @@ export class StateBuilder {
             const effectType = statusEffectMap[effect];
             if (!effectType) {
                 throw new Error(`Unknown status effect: ${effect}`);
-            }
-            // Initialize array if it doesn't exist
-            if (!state.statusEffects.activeStatusEffects[player]) {
-                state.statusEffects.activeStatusEffects[player] = [];
             }
             // Append to existing effects instead of replacing
             state.statusEffects.activeStatusEffects[player].push({ type: effectType, appliedTurn: 1 });

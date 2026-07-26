@@ -187,8 +187,8 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         // SIMULATION: Takes non-waiting state, resumes and simulates to completion
         const { node: expandedNode, state: postExpansionState } = expansionResult;
         
-        const isNode = expandedNode && 'lastPlayer' in expandedNode;
-        
+        const isNode = 'lastPlayer' in expandedNode;
+
         const reward = this.simulation.simulate(postExpansionState, isNode ? expandedNode.lastPlayer : playerIndex, maxDepth);
         
         this.backpropagation.backpropagate(expandedNode, reward);
@@ -206,7 +206,7 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
             }
         }
         
-        return { action: bestChild.lastAction || null, score: bestAverageReward };
+        return { action: bestChild.lastAction, score: bestAverageReward };
     }
 
     private getAllActionsWithScores(root: ISMCTSRoot<ResponseMessage>): { action: ResponseMessage, score: number, visits: number }[] {
@@ -220,7 +220,7 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         }
         
         const result = root.children.map(child => ({
-            action: child.lastAction || null,
+            action: child.lastAction,
             score: calculateAvgScore(child),
             visits: child.visits,
         }));

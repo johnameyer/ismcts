@@ -58,8 +58,8 @@ export class EuchreDeterminization implements Determinization<Controllers> {
         const trick = handlerData.trick;
         let cardsInCurrentTrick = 0;
         
-        if (trick?.currentTrick && Array.isArray(trick.currentTrick)) {
-            const leader = trick.leader || 0;
+        if (Array.isArray(trick.currentTrick)) {
+            const leader = trick.leader;
             for (let i = 0; i < trick.currentTrick.length; i++) {
                 const card = trick.currentTrick[i];
                 if (card) {
@@ -73,7 +73,7 @@ export class EuchreDeterminization implements Determinization<Controllers> {
         }
         
         // Calculate total cards played across all completed tricks
-        const tricksCompleted = trick?.tricks || 0;
+        const tricksCompleted = trick.tricks;
         const totalCardsPlayed = tricksCompleted * 4 + cardsInCurrentTrick;
         
         // Convert remaining cards to array and shuffle

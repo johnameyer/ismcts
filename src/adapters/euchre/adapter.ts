@@ -34,8 +34,8 @@ export function isEuchreRoundEnded(gameState: GameState): boolean {
  */
 export function getEuchreRewardForPlayer(gameState: GameState, playerIndex: number): number {
     const scores = (gameState as Record<string, unknown>).score;
-    const scoresArray = Array.isArray(scores) ? scores 
-        : (scores as Record<string, unknown>)?.['0'] !== undefined 
+    const scoresArray = Array.isArray(scores) ? scores
+        : (scores as Record<string, unknown>)['0'] !== undefined
             ? Object.values(scores as Record<string, unknown>) : undefined;
     
     if (!scoresArray || scoresArray.length < 2) {
@@ -88,7 +88,7 @@ export function createEuchreDriverFactory(): DriverFactory<ResponseMessage, Cont
         
         // Use provided handlers or create no-op handlers for all 4 players
         /* eslint-disable @typescript-eslint/no-explicit-any */
-        const playersToUse: any = handlers && handlers.length > 0 
+        const playersToUse: any = handlers.length > 0
             ? (handlers as any[]).map(h => new HandlerChain([ h ]))
             : [
                 new HandlerChain([ noOpHandler() ]),

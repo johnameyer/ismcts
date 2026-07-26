@@ -36,12 +36,12 @@ describe('ISMCTS Forward Simulation', () => {
         // Verify MCTS scores it correctly
         const actions = simulation.getActions(gameState, 0, MAIN_ACTION_RESPONSE_TYPES, { iterations: 10, maxDepth: 15 });
         
-        const attackMCTS = actions.find(a => a.action?.constructor.name === 'AttackResponseMessage');
-        const endTurnMCTS = actions.find(a => a.action?.constructor.name === 'EndTurnResponseMessage');
-        
+        const attackMCTS = actions.find(a => a.action.constructor.name === 'AttackResponseMessage');
+        const endTurnMCTS = actions.find(a => a.action.constructor.name === 'EndTurnResponseMessage');
+
         // Attack should score perfectly since it guarantees immediate win
         expect(attackMCTS).to.exist;
-        expect(attackMCTS!.score).to.equal(1.0, 'Attack should score 1.0 for guaranteed knockout');
+        expect(attackMCTS?.score).to.equal(1.0, 'Attack should score 1.0 for guaranteed knockout');
     });
 
     it('all actions should score high when player is in winning position', () => {
@@ -68,8 +68,8 @@ describe('ISMCTS Forward Simulation', () => {
         expect(actions).to.have.length.of.at.least(1, 'Should return actions');
         
         // Attack should score highest since it's a guaranteed KO
-        const attackAction = actions.find(a => a.action?.constructor.name === 'AttackResponseMessage');
+        const attackAction = actions.find(a => a.action.constructor.name === 'AttackResponseMessage');
         expect(attackAction).to.exist;
-        expect(attackAction!.score).to.equal(1.0, 'Attack should score 1.0 for guaranteed knockout');
+        expect(attackAction?.score).to.equal(1.0, 'Attack should score 1.0 for guaranteed knockout');
     });
 });

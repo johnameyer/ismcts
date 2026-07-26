@@ -109,8 +109,8 @@ describe('ISMCTS Tree Exploration', () => {
         console.log('[TREE-TEST] Root children after MCTS:', actions.length);
         actions.forEach((action, idx) => {
             console.log(`  [${idx}] `, { 
-                type: (action.action)?.type, 
-                templateId: (action.action)?.templateId, 
+                type: action.action.type,
+                templateId: (action.action as Record<string, unknown>).templateId,
                 score: action.score.toFixed(4),
             });
         });

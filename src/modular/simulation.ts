@@ -41,13 +41,8 @@ export class ISMCTSSimulation<ResponseMessage extends Message, Controllers exten
         private isRoundEnded: RoundEndDetector<Controllers>,
         private getRoundReward: RewardCalculator<Controllers>,
         private gameAdapterConfig: GameAdapterConfig<ResponseMessage, Controllers>,
-        private getTimeoutReward?: RewardCalculator<Controllers>,
-    ) {
-        // Fall back to getRoundReward if getTimeoutReward not provided
-        if (!this.getTimeoutReward) {
-            this.getTimeoutReward = this.getRoundReward;
-        }
-    }
+        private getTimeoutReward: RewardCalculator<Controllers> = getRoundReward,
+    ) {}
     
     /**
      * Simulates a game from the given state to completion using random play.
@@ -85,7 +80,7 @@ export class ISMCTSSimulation<ResponseMessage extends Message, Controllers exten
         // Calculate reward based on final game state
         const reward = this.isRoundEnded(finalState)
             ? this.getRoundReward(finalState, playerIndex)
-            : this.getTimeoutReward!(finalState, playerIndex);
+            : this.getTimeoutReward(finalState, playerIndex);
         
         if (debug) {
             console.log(`[SIMULATE] Player ${playerIndex}: Reward ${reward}, Completed: ${this.isRoundEnded(finalState)}`);

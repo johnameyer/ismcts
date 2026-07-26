@@ -116,7 +116,7 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
         let latestResponseTypes = expectedResponseTypes;
         const selectionDepth = 0;
         
-        while (true) {
+        for (;;) {
             // GET LEGAL: Generate valid actions for current state (which is waiting)
             const { state: gameState, waitingPlayer: currentPlayer, handlerData } = getGameStateAndWaitingPlayer(currentGameState, this.driverFactory);
 
@@ -134,7 +134,7 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
             
             // FILTER: Only consider children with currently legal actions
             const validChildren = currentNode.children.filter(child => {
-                const isLegal = legalActions.some(legal => legal.constructor.name === child.lastAction?.constructor.name
+                const isLegal = legalActions.some(legal => legal.constructor.name === child.lastAction.constructor.name
                     && JSON.stringify(legal) === JSON.stringify(child.lastAction),
                 );
                 return isLegal;

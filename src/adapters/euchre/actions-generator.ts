@@ -22,7 +22,7 @@ export class EuchreActionsGenerator implements ActionsGenerator<ResponseMessage,
         'name-trump-response': (hd) => {
             const actions: ResponseMessage[] = [ new NameTrumpResponseMessage(undefined) ];
             const euchreState = hd.euchre;
-            const currentTrump = euchreState?.currentTrump;
+            const currentTrump = euchreState.currentTrump;
             for (const suit of Suit.suits) {
                 if (suit !== currentTrump) {
                     actions.push(new NameTrumpResponseMessage(suit));
@@ -56,9 +56,7 @@ export class EuchreActionsGenerator implements ActionsGenerator<ResponseMessage,
 
         for (const responseType of expectedResponseTypes) {
             const generator = this.responseTypeGenerators[responseType];
-            if (generator) {
-                actions.push(...generator(handlerData));
-            }
+            actions.push(...generator(handlerData));
         }
 
         return actions;

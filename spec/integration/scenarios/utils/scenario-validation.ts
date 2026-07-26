@@ -147,7 +147,7 @@ function playActionSequence(
     for (const [ expectedPlayerIndex, action ] of actions) {
         // Determine current player from waiting state
         const waiting = (currentState).waiting;
-        if (!waiting || !waiting.waiting || (Array.isArray(waiting.waiting) && waiting.waiting.length === 0)) {
+        if (Array.isArray(waiting.waiting) && waiting.waiting.length === 0) {
             throw new Error(`No player waiting at action ${actionIndex}. State: ${JSON.stringify(waiting)}`);
         }
 
@@ -198,7 +198,7 @@ function playActionSequence(
     // Determine outcome
     const isGameEnded = gameAdapterConfig.isRoundEnded(currentState);
     const reward = gameAdapterConfig.getRoundReward(currentState, 0); // Always use player 0 perspective
-    const finalPoints = (currentState).points || [ 0, 0 ];
+    const finalPoints = (currentState).points;
 
     return {
         isGameEnded,

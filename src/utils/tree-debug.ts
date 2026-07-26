@@ -32,15 +32,15 @@ export const printTree = (node: ISMCTSNode<Message> | ISMCTSRoot<Message>, depth
  */
 export const getNodePath = (node: ISMCTSNode<Message> | ISMCTSRoot<Message>): string => {
     const pathNodes: ISMCTSNode<Message>[] = [];
-    let current: ISMCTSNode<Message> | ISMCTSRoot<Message> = node;
-    
+    let current: ISMCTSNode<Message> | ISMCTSRoot<Message> | undefined = node;
+
     // Walk up the entire parent chain to root
-    while (current && 'lastAction' in current) {
+    while (current !== undefined && 'lastAction' in current) {
         // This is a regular node (has lastAction and parent)
         pathNodes.unshift(current);
         current = current.parent;
     }
     
     // Build readable path
-    return pathNodes.map((n: ISMCTSNode<Message>) => `P${n.lastPlayer} ${(n.lastAction)?.type ?? 'unknown'}`).join(' → ');
+    return pathNodes.map((n: ISMCTSNode<Message>) => `P${n.lastPlayer} ${n.lastAction.type}`).join(' → ');
 };

@@ -112,16 +112,16 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
     
     // Check that expected action is in the generated actions list
     const expectedActionExists = actions.some(a => {
-        const msg = a.action as ResponseMessage;
+        const msg = a.action;
         return JSON.stringify(msg) === expectedActionJsonForComparison;
     });
     expect(expectedActionExists, 
         `Expected action ${expectedActionJsonForComparison} must be generated. Available: ${actions.map(a => {
-            const msg = a.action as ResponseMessage;
+            const msg = a.action;
             return JSON.stringify(msg);
         }).join(', ')}`).to.be.true;
     
-    const expectedActionIndex = actions.findIndex(action => JSON.stringify(action.action) === JSON.stringify(expectedAction))!;
+    const expectedActionIndex = actions.findIndex(action => JSON.stringify(action.action) === JSON.stringify(expectedAction));
     const expectedActionNode = actions[expectedActionIndex];
 
     expect(expectedActionNode.score).to.be.greaterThan(
@@ -163,13 +163,13 @@ export function testBinaryChoice(config: BinaryChoiceTestConfig): void {
     }
 
     const bestAction = actions[0];
-    const action = bestAction.action as ResponseMessage;
+    const action = bestAction.action;
     
     // console.log(`[BINARY-CHOICE] Actions for: ${description}`);
     // console.log(`  Best: ${JSON.stringify(action)} = ${bestAction.score.toFixed(4)}`);
     for (let i = 1; i < Math.min(3, actions.length); i++) {
         const alt = actions[i];
-        const altMessage = alt.action as ResponseMessage;
+        const altMessage = alt.action;
         // console.log(`  Alt[${i}]: ${JSON.stringify(altMessage)} = ${alt.score.toFixed(4)}`);
     }
     

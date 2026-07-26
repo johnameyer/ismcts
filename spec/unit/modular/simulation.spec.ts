@@ -919,8 +919,8 @@ describe('Heal Scenario Bug - Simulation Reward Consistency', () => {
         const afterP1Attack = driver.getState();
 
         field = (afterP1Attack).field;
-        const p0CreaturesCount = field?.creatures?.[0]?.length ?? 0;
-        const p1CreaturesCount = field?.creatures?.[1]?.length ?? 0;
+        const p0CreaturesCount = field.creatures[0]?.length ?? 0;
+        const p1CreaturesCount = field.creatures[1]?.length ?? 0;
 
         if (p0CreaturesCount > 0) {
             // This should not happen after an attack that kills
@@ -973,8 +973,8 @@ describe('Heal Scenario Bug - Simulation Reward Consistency', () => {
         const afterP1AttackNoResume = driver.getState();
 
         const field = (afterP1AttackNoResume).field;
-        const p0Creatures = field?.creatures?.[0]?.length ?? 0;
-        const p1Creatures = field?.creatures?.[1]?.length ?? 0;
+        const p0Creatures = field.creatures[0]?.length ?? 0;
+        const p1Creatures = field.creatures[1]?.length ?? 0;
         
         // Without resume, knockout processing hasn't happened yet, so P0 creature still exists
         expect(p0Creatures).to.be.greaterThan(0, 'P0 should have creature before resume processes knockout');
@@ -1030,7 +1030,7 @@ describe('Simulate Method Unit Tests', () => {
                 // Check for game over
                 const gameState = mockDriver.getState();
                 const points = gameState.points;
-                if (points && (points[0] > points[1] || points[1] > points[0])) {
+                if (points[0] > points[1] || points[1] > points[0]) {
                     break;
                 }
             }
@@ -1048,7 +1048,7 @@ describe('Simulate Method Unit Tests', () => {
                 completed: true,
             };
             
-            const shouldBreak = gameState.points && (gameState.points[0] > gameState.points[1] || gameState.points[1] > gameState.points[0]);
+            const shouldBreak = gameState.points[0] > gameState.points[1] || gameState.points[1] > gameState.points[0];
             
             expect(shouldBreak).to.be.true;
         });
