@@ -213,7 +213,10 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
         for (let position = 0; position < creatures.length; position++) {
             const creature = creatures[position];
-            if (!creature) continue;
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            if (!creature) {
+                continue;
+            }
 
             const templateId = getCurrentTemplateId(creature);
             let creatureData;
@@ -405,11 +408,15 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
          * but we should only generate actions for currentPlayer's own creatures
          */
         const playerCreatures = handlerData.field.creatures[currentPlayer];
-        if (playerCreatures.length === 0) return actions;
+        if (playerCreatures.length === 0) {
+            return actions; 
+        }
 
         const opponentId = 1 - currentPlayer;
         const opponentCreatures = handlerData.field.creatures[opponentId];
-        if (!opponentCreatures?.[0]) return actions; // opponent has no active — attack would throw
+        if (!opponentCreatures[0]) {
+            return actions; 
+        } // opponent has no active — attack would throw
 
         const activeCreature = playerCreatures[0];
 
@@ -454,23 +461,28 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     }
 
     private generateTargetSelectionActions(handlerData: HandlerData): ResponseMessage[] {
-        const pendingSelection = handlerData.turnState?.pendingSelection;
-        if (!pendingSelection) return [];
+        const pendingSelection = handlerData.turnState.pendingSelection;
+        if (!pendingSelection) {
+            return []; 
+        }
 
         // Use pre-filtered availableTargets from pendingSelection so we only
         // generate actions for targets that the effect considers valid (e.g. bench-only for switch).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const availableTargets: Array<{ playerId: number; fieldIndex: number }> = (pendingSelection as any).availableTargets ?? [];
 
-        if (availableTargets.length === 0) return [];
-
-        const count = pendingSelection.count || 1;
-
-        if (count === 1) {
-            return availableTargets.map(t => new SelectTargetResponseMessage([ t ]));
+        if (availableTargets.length === 0) {
+            return []; 
         }
 
-        const combinations = this.generateTargetCombinations(availableTargets, count);
+        const count = pendingSelection.count || 1;
+        const strippedTargets = availableTargets.map(t => ({ playerId: t.playerId, fieldIndex: t.fieldIndex }));
+
+        if (count === 1) {
+            return strippedTargets.map(t => new SelectTargetResponseMessage([ t ]));
+        }
+
+        const combinations = this.generateTargetCombinations(strippedTargets, count);
         return combinations.map(combo => new SelectTargetResponseMessage(combo));
     }
 
@@ -527,33 +539,45 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     }
 
     private generateSelectCardActions(handlerData: HandlerData): ResponseMessage[] {
-        const pending = handlerData.turnState?.pendingSelection;
-        if (!pending || !isPendingCardSelection(pending)) return [];
-        const count = pending.count ?? 1;
-        const cards = pending.availableCards ?? [];
+        const pending = handlerData.turnState.pendingSelection;
+        if (!pending || !isPendingCardSelection(pending)) {
+            return []; 
+        }
+        const count = pending.count;
+        const cards = pending.availableCards;
         // Generate one action per valid subset of size `count` (greedy: first N)
-        if (cards.length === 0) return [];
+        if (cards.length === 0) {
+            return []; 
+        }
         const selected = cards.slice(0, count).map(c => c.templateId);
         return [ new SelectCardResponseMessage(selected) ];
     }
 
     private generateSelectEnergyActions(handlerData: HandlerData): ResponseMessage[] {
-        const pending = handlerData.turnState?.pendingSelection;
-        if (!pending || !isPendingEnergySelection(pending)) return [];
-        const count = pending.count ?? 1;
-        const options = pending.availableEnergy ?? [];
-        if (options.length === 0) return [];
+        const pending = handlerData.turnState.pendingSelection;
+        if (!pending || !isPendingEnergySelection(pending)) {
+            return []; 
+        }
+        const count = pending.count;
+        const options = pending.availableEnergy;
+        if (options.length === 0) {
+            return []; 
+        }
         // Generate one action per valid combination (greedy: first N)
         const selected = options.slice(0, count).map(o => ({ playerId: o.playerId, fieldIndex: o.fieldIndex }));
         return [ new SelectEnergyResponseMessage(selected) ];
     }
 
     private generateSelectChoiceActions(handlerData: HandlerData): ResponseMessage[] {
-        const pending = handlerData.turnState?.pendingSelection;
-        if (!pending || !isPendingChoiceSelection(pending)) return [];
-        const count = pending.count ?? 1;
-        const choices = pending.choices ?? [];
-        if (choices.length === 0) return [];
+        const pending = handlerData.turnState.pendingSelection;
+        if (!pending || !isPendingChoiceSelection(pending)) {
+            return []; 
+        }
+        const count = pending.count;
+        const choices = pending.choices;
+        if (choices.length === 0) {
+            return []; 
+        }
         // Generate one action per choice (each individually, so ISMCTS can explore all)
         return choices.map(c => new SelectChoiceResponseMessage([ c.value ])).slice(0, count);
     }

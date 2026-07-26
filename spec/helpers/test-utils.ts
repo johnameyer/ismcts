@@ -178,6 +178,7 @@ const DEFAULT_TEST_TOOLS = new Map<string, ToolData>([
     [ 'basic-tool', {
         templateId: 'basic-tool',
         name: 'Basic Tool',
+        trigger: { type: 'manual' as const, unlimited: false },
         effects: [{ type: 'hp' as const, operation: 'heal' as const, amount: { type: 'constant' as const, value: 10 }, target: { type: 'fixed' as const, player: 'self' as const, position: 'active' as const }}],
     }],
 ]);
