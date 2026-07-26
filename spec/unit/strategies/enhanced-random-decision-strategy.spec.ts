@@ -3,8 +3,9 @@ import { ControllerHandlerState, ControllerState, IndexedControllers, Message } 
 import { EnhancedRandomDecisionStrategy } from '../../../src/strategies/enhanced-random-decision-strategy.js';
 import { GameAdapterConfig } from '../../../src/adapter-config.js';
 import { GameDriver } from '../../../src/utils/driver-types.js';
+import { FrameworkControllers } from '../../../src/ismcts-types.js';
 
-type TestControllers = IndexedControllers;
+type TestControllers = IndexedControllers & FrameworkControllers;
 
 type TestResponseMessage = Message & {
     type: 'attack-response' | 'retreat-response' | 'end-turn-response';
@@ -29,6 +30,18 @@ function createAdapterConfig(
         },
         driverFactory: () => ({
             getValidationError: () => undefined,
+            getState: () => ({} as ControllerState<TestControllers>),
+            handleEvent: () => true,
+            gameState: {
+                controllers: {
+                    waiting: {
+                        get: () => ({ waiting: [ 0 ], responded: [] }),
+                    },
+                    players: {
+                        getFor: (position: number) => ({ position }),
+                    },
+                },
+            },
         }) as unknown as GameDriver<TestResponseMessage, TestControllers>,
         isRoundEnded: () => false,
         getRoundReward: () => 0.5,

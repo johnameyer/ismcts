@@ -22,11 +22,9 @@ describe('ISMCTSSelection Scenarios', () => {
         cardRepository = new MockCardRepository();
         const gameAdapterConfig = getSharedTestConfig();
         legalActionsGenerator = new LegalActionsGenerator(
-            gameAdapterConfig.actionsGenerator, 
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
+            gameAdapterConfig.actionsGenerator,
         );
-        selection = new ISMCTSSelection(legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
+        selection = new ISMCTSSelection(legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
     });
 
     it('should select leaf node when no children exist', () => {
@@ -272,11 +270,9 @@ describe('ISMCTSSelection - State Handling (Bug Fix Verification)', () => {
         cardRepository = new MockCardRepository();
         const gameAdapterConfig = getSharedTestConfig();
         legalActionsGenerator = new LegalActionsGenerator(
-            gameAdapterConfig.actionsGenerator, 
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
+            gameAdapterConfig.actionsGenerator,
         );
-        selection = new ISMCTSSelection(legalActionsGenerator, gameAdapterConfig.driverFactory, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
+        selection = new ISMCTSSelection(legalActionsGenerator, gameAdapterConfig.isRoundEnded, gameAdapterConfig);
     });
 
     describe('Input State Precondition and Deep Copy', () => {

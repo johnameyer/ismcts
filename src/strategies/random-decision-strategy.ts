@@ -1,6 +1,8 @@
 import { Message, IndexedControllers, ControllerHandlerState } from '@cards-ts/core';
 import { LegalActionsGenerator } from '../legal-actions-generator.js';
 import { GameAdapterConfig } from '../adapter-config.js';
+import { GameContext } from '../utils/game-context.js';
+import { FrameworkControllers } from '../ismcts-types.js';
 import { DecisionStrategy } from './decision-strategy.js';
 
 /**
@@ -13,16 +15,10 @@ import { DecisionStrategy } from './decision-strategy.js';
  * - Baseline comparison (ISMCTS vs Random)
  * - Fallback behavior when ISMCTS fails
  * - Testing
- *
- * This strategy is completely game-agnostic:
- * - Uses LegalActionsGenerator to find valid actions
- * - Receives game logic through GameAdapterConfig dependency injection
- * - Doesn't import any game-specific types
- * - Works with abstract HandlerData
  */
 export class RandomDecisionStrategy<
     ResponseMessage extends Message,
-    Controllers extends IndexedControllers,
+    Controllers extends IndexedControllers & FrameworkControllers,
 > implements DecisionStrategy<ResponseMessage, Controllers> {
     private legalActionsGenerator: LegalActionsGenerator<ResponseMessage, Controllers>;
 
@@ -34,33 +30,26 @@ export class RandomDecisionStrategy<
         this.gameAdapterConfig = gameAdapterConfig;
         this.legalActionsGenerator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
         );
     }
 
     getAction(handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]): ResponseMessage | null {
-        // Get all legal actions
-        const legalActions = this.legalActionsGenerator.generateLegalActions(
-            handlerData,
-            expectedResponseTypes,
-        );
+        const state = this.gameAdapterConfig.reconstructGameStateForValidation(handlerData);
+        const ctx = new GameContext(state, this.gameAdapterConfig);
+        const legalActions = this.legalActionsGenerator.generateLegalActions(ctx, expectedResponseTypes);
 
         if (legalActions.length === 0) {
             return null;
         }
 
-        // If only one action, return it
         if (legalActions.length === 1) {
             return legalActions[0];
         }
 
-        // Use weighted selection if game provides weight function
         if (this.gameAdapterConfig.getActionWeight) {
             return this.selectWeightedAction(legalActions);
         }
 
-        // Otherwise choose uniformly at random
         const randomIndex = Math.floor(Math.random() * legalActions.length);
         return legalActions[randomIndex];
     }
@@ -68,7 +57,6 @@ export class RandomDecisionStrategy<
     /**
      * Select action using game-provided weights.
      * Higher weight = higher probability of selection.
-     * Default weight is 1.0 if not specified by game.
      */
     private selectWeightedAction(actions: ResponseMessage[]): ResponseMessage {
         const weights: number[] = [];
@@ -80,7 +68,6 @@ export class RandomDecisionStrategy<
             totalWeight += weight;
         }
 
-        // Select based on weighted probability
         const randomValue = Math.random() * totalWeight;
         let currentWeight = 0;
 
@@ -91,7 +78,6 @@ export class RandomDecisionStrategy<
             }
         }
 
-        // Fallback (should never reach here)
         return actions[actions.length - 1];
     }
 }

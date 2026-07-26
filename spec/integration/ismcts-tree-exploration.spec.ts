@@ -3,8 +3,8 @@ import { describe, it, beforeEach } from 'mocha';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
 import { ISMCTS } from '../../src/modular/ismcts.js';
-import { createGenericPlayerView } from '../../src/utils/generic-player-view.js';
 import { LegalActionsGenerator } from '../../src/legal-actions-generator.js';
+import { GameContext } from '../../src/utils/game-context.js';
 import { createWaitingGameStateForMCTS } from '../helpers/test-state-builder.js';
 import { createGameAdapterConfig } from '../helpers/test-helpers.js';
 import { createMockCardRepository } from '../helpers/test-utils.js';
@@ -83,14 +83,11 @@ describe('ISMCTS Tree Exploration', () => {
         );
         
         // Get legal actions that should be in the tree
-        const driver = simulation.gameAdapterConfig.driverFactory(gameState, []);
-        const handlerData = createGenericPlayerView(driver.gameState.controllers, 0);
-        const legalActionsGenerator = new LegalActionsGenerator(
+        const legalActionsGenerator2 = new LegalActionsGenerator(
             simulation.gameAdapterConfig.actionsGenerator,
-            simulation.gameAdapterConfig.driverFactory,
-            simulation.gameAdapterConfig.reconstructGameStateForValidation,
         );
-        const expectedLegalActions = legalActionsGenerator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+        const ctx2 = new GameContext(gameState, simulation.gameAdapterConfig);
+        const expectedLegalActions = legalActionsGenerator2.generateLegalActions(ctx2, MAIN_ACTION_RESPONSE_TYPES);
         
         console.log('[TREE-TEST] Expected legal actions from root:', expectedLegalActions.length);
         expectedLegalActions.forEach((action, idx) => {
@@ -181,14 +178,11 @@ describe('ISMCTS Tree Exploration', () => {
         const gameState = createWaitingGameStateForMCTS(undefined, testRepository);
         
         // Get expected legal actions
-        const driver = simulation.gameAdapterConfig.driverFactory(gameState, []);
-        const handlerData = createGenericPlayerView(driver.gameState.controllers, 0);
         const legalActionsGenerator = new LegalActionsGenerator(
             simulation.gameAdapterConfig.actionsGenerator,
-            simulation.gameAdapterConfig.driverFactory,
-            simulation.gameAdapterConfig.reconstructGameStateForValidation,
         );
-        const expectedLegalActions = legalActionsGenerator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+        const ctx = new GameContext(gameState, simulation.gameAdapterConfig);
+        const expectedLegalActions = legalActionsGenerator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
         
         // Run MCTS
         const actions = simulation.getActions(gameState, 0, MAIN_ACTION_RESPONSE_TYPES, { 

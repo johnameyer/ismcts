@@ -2,6 +2,7 @@ import { Message, IndexedControllers, ControllerHandlerState } from '@cards-ts/c
 import { ISMCTS } from '../modular/ismcts.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { GameAdapterConfig } from '../adapter-config.js';
+import { GameContext } from '../utils/game-context.js';
 import { ISMCTSConfig, DEFAULT_ISMCTS_CONFIG } from '../modular/ismcts-config.js';
 import { summarizeAction } from '../utils/action-debug.js';
 import { DecisionStrategy } from './decision-strategy.js';
@@ -70,7 +71,8 @@ export class ISMCTSDecisionStrategy<
             if (process.env.LOG_ISMCTS_FILTERED_ACTIONS === 'true') {
                 console.warn(`[ISMCTSDecisionStrategy] expectedResponseTypes: ${expectedResponseTypes.join(', ')}`);
                 try {
-                    const legalActions = this.ismcts.legalActionsGenerator.generateLegalActions(handlerData, expectedResponseTypes);
+                    const debugCtx = new GameContext(this.ismcts.gameAdapterConfig.reconstructGameStateForValidation(handlerData), this.ismcts.gameAdapterConfig);
+                    const legalActions = this.ismcts.legalActionsGenerator.generateLegalActions(debugCtx, expectedResponseTypes);
                     console.warn(`[ISMCTSDecisionStrategy] legal actions at fallback: ${legalActions.length}`);
                     legalActions.forEach((action, index) => {
                         console.warn(`  [legal ${index + 1}] ${summarizeAction(action)}`);

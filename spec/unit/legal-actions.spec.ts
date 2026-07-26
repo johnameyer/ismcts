@@ -16,7 +16,7 @@ import { MockCardRepository, createMockCardRepository, createInstancedFieldCard 
 import { StateBuilder } from '../helpers/state-builder.js';
 import { createGameAdapterConfig, getSharedTestConfig } from '../helpers/test-helpers.js';
 import { createWaitingGameStateForMCTS } from '../helpers/test-state-builder.js';
-import { createGenericPlayerView } from '../../src/utils/generic-player-view.js';
+import { GameContext } from '../../src/utils/game-context.js';
 
 describe('LegalActionsGenerator', () => {
     let generator: LegalActionsGenerator<ResponseMessage, Controllers>;
@@ -26,9 +26,7 @@ describe('LegalActionsGenerator', () => {
         cardRepository = new MockCardRepository();
         const gameAdapterConfig = createGameAdapterConfig(cardRepository);
         generator = new LegalActionsGenerator(
-            gameAdapterConfig.actionsGenerator, 
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
+            gameAdapterConfig.actionsGenerator,
         );
     });
 
@@ -45,10 +43,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const creatureActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'creature');
             
@@ -67,10 +63,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const creatureActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'creature',
             );
@@ -93,10 +87,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const energyActions = actions.filter(action => action instanceof AttachEnergyResponseMessage);
             
@@ -116,10 +108,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const energyActions = actions.filter(action => action instanceof AttachEnergyResponseMessage);
             
@@ -140,10 +130,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const attackActions = actions.filter(action => action instanceof AttackResponseMessage);
             
@@ -159,10 +147,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const attackActions = actions.filter(action => action instanceof AttackResponseMessage);
             
@@ -181,10 +167,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const attackActions = actions.filter(action => action instanceof AttackResponseMessage);
             
@@ -207,10 +191,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const toolActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'tool',
             ) as PlayCardResponseMessage[];
@@ -234,10 +216,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const toolActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'tool',
             );
@@ -259,10 +239,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
 
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const stadiumActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'stadium',
             ) as PlayCardResponseMessage[];
@@ -286,10 +264,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
 
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const stadiumActions = actions.filter(action => action instanceof PlayCardResponseMessage && action.cardType === 'stadium',
             );
@@ -308,10 +284,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             const endTurnActions = actions.filter(action => action instanceof EndTurnResponseMessage);
             
@@ -336,10 +310,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
             
             // Should have: creature, supporter, item, energy, attack, retreat, end turn
             expect(actions.length).to.be.greaterThan(5);
@@ -370,10 +342,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const playCardActions = actions.filter(a => a instanceof PlayCardResponseMessage);
             expect(playCardActions.length).to.be.greaterThan(0, 'Should generate creature play actions');
@@ -400,10 +370,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const supporterActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a).cardType === 'supporter');
             expect(supporterActions.length).to.be.greaterThan(0, 'Should generate supporter actions when available');
@@ -427,10 +395,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const supporterActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a).cardType === 'supporter');
             expect(supporterActions.length).to.equal(0, 'Should not generate supporter actions when already played this turn');
@@ -454,10 +420,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const energyActions = actions.filter(a => a instanceof AttachEnergyResponseMessage);
             expect(energyActions.length).to.be.greaterThan(0, 'Should generate energy attachment actions when available');
@@ -478,10 +442,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const endTurnActions = actions.filter(a => a instanceof EndTurnResponseMessage);
             expect(endTurnActions.length).to.be.greaterThan(0, 'Should always include end turn action');
@@ -510,10 +472,8 @@ describe('LegalActionsGenerator', () => {
                 cardRepository,
             );
             
-            const driver = gameAdapterConfig.driverFactory(gameState, []);
-            const controllers = driver.gameState.controllers;
-            const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-            const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+            const ctx = new GameContext(gameState, gameAdapterConfig);
+            const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
             const creatureActions = actions.filter(a => a instanceof PlayCardResponseMessage && (a).cardType === 'creature');
             expect(creatureActions.length).to.equal(0, 'Should not generate creature actions when bench is full');
@@ -585,10 +545,8 @@ describe('LegalActionsGenerator', () => {
                     cardRepository,
                 );
                 
-                const driver = gameAdapterConfig.driverFactory(gameState, []);
-                const controllers = driver.gameState.controllers;
-                const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-                const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+                const ctx = new GameContext(gameState, gameAdapterConfig);
+                const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
                 const attackActions = actions.filter(action => action instanceof AttackResponseMessage);
                 expect(attackActions.length).to.be.greaterThan(0, 'Should generate attack actions when energy available');
@@ -609,10 +567,8 @@ describe('LegalActionsGenerator', () => {
                     cardRepository,
                 );
                 
-                const driver = gameAdapterConfig.driverFactory(gameState, []);
-                const controllers = driver.gameState.controllers;
-                const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-                const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+                const ctx = new GameContext(gameState, gameAdapterConfig);
+                const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
                 const energyActions = actions.filter(action => action instanceof AttachEnergyResponseMessage);
                 expect(energyActions.length).to.be.greaterThan(0, 'Should generate energy attachment actions');
@@ -632,10 +588,8 @@ describe('LegalActionsGenerator', () => {
                     cardRepository,
                 );
                 
-                const driver = gameAdapterConfig.driverFactory(gameState, []);
-                const controllers = driver.gameState.controllers;
-                const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-                const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+                const ctx = new GameContext(gameState, gameAdapterConfig);
+                const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
                 const endTurnActions = actions.filter(action => action instanceof EndTurnResponseMessage);
                 expect(endTurnActions.length).to.be.greaterThan(0, 'Should always generate end turn action');
@@ -657,10 +611,8 @@ describe('LegalActionsGenerator', () => {
                     cardRepository,
                 );
                 
-                const driver = gameAdapterConfig.driverFactory(gameState, []);
-                const controllers = driver.gameState.controllers;
-                const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-                const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+                const ctx = new GameContext(gameState, gameAdapterConfig);
+                const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
                 const retreatActions = actions.filter(action => action instanceof RetreatResponseMessage);
                 expect(retreatActions.length).to.be.greaterThan(0, 'Should generate retreat actions when energy available');
@@ -681,10 +633,8 @@ describe('LegalActionsGenerator', () => {
                     cardRepository,
                 );
                 
-                const driver = gameAdapterConfig.driverFactory(gameState, []);
-                const controllers = driver.gameState.controllers;
-                const handlerData = ControllerUtils.createPlayerView(controllers, 0);
-                const actions = generator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES);
+                const ctx = new GameContext(gameState, gameAdapterConfig);
+                const actions = generator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
 
                 const playCardActions = actions.filter(action => action instanceof PlayCardResponseMessage);
                 expect(playCardActions.length).to.be.greaterThan(0, 'Should generate creature play actions');
@@ -700,9 +650,7 @@ describe('Legal Actions Validation', () => {
         const cardRepository = createMockCardRepository();
         const gameAdapterConfig = createGameAdapterConfig(cardRepository);
         legalActionsGenerator = new LegalActionsGenerator(
-            gameAdapterConfig.actionsGenerator, 
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
+            gameAdapterConfig.actionsGenerator,
         );
     });
 
@@ -720,10 +668,10 @@ describe('Legal Actions Validation', () => {
         // Framework type bridging - cast to any for framework internals
         /* eslint-disable @typescript-eslint/no-explicit-any */
         (gameState as any).controllers.turnState.setRetreatThisTurn(0, true);
-
-        const handlerData = createGenericPlayerView(gameState as any, 0);
         /* eslint-enable @typescript-eslint/no-explicit-any */
-        const legalActions = legalActionsGenerator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES, false);
+        const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+        const ctx = new GameContext(gameState, gameAdapterConfig);
+        const legalActions = legalActionsGenerator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
         
         const retreatActions = legalActions.filter(action => action instanceof RetreatResponseMessage);
         
@@ -742,11 +690,9 @@ describe('Legal Actions Validation', () => {
             cardRepository,
         );
 
-        // Framework type bridging - cast to any for framework internals
-        /* eslint-disable @typescript-eslint/no-explicit-any */
-        const handlerData = createGenericPlayerView(gameState as any, 0);
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-        const legalActions = legalActionsGenerator.generateLegalActions(handlerData, MAIN_ACTION_RESPONSE_TYPES, false);
+        const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+        const ctx = new GameContext(gameState, gameAdapterConfig);
+        const legalActions = legalActionsGenerator.generateLegalActions(ctx, MAIN_ACTION_RESPONSE_TYPES);
         
         const retreatActions = legalActions.filter(action => action instanceof RetreatResponseMessage);
         
@@ -762,8 +708,6 @@ describe('Legal Actions - Turn vs Waiting Controller', () => {
         gameAdapterConfig = getSharedTestConfig();
         legalActionsGenerator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
-            gameAdapterConfig.driverFactory,
-            gameAdapterConfig.reconstructGameStateForValidation,
         );
     });
 
@@ -778,15 +722,12 @@ describe('Legal Actions - Turn vs Waiting Controller', () => {
             cardRepository,
         );
 
-        // Get controllers and create player view
-        const driver = gameAdapterConfig.driverFactory(gameState, []);
-        const controllers = (driver).gameState.controllers;
-        const handlerData = createGenericPlayerView(controllers, 0);
-        (handlerData).turn = 0;
+        // GameContext uses waiting controller internally — turn field manipulation not needed
+        const ctx = new GameContext(gameState, gameAdapterConfig);
 
         // Generate legal actions
         const legalActions = legalActionsGenerator.generateLegalActions(
-            handlerData,
+            ctx,
             [ 'play-card-response', 'attack-response', 'end-turn-response' ] as const,
         );
 
