@@ -18,6 +18,8 @@ export class LegalActionsGenerator<ResponseMessage extends Message, Controllers 
     ) {}
 
     generateLegalActions(ctx: GameContext<ResponseMessage, Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]): ResponseMessage[] {
+        // Use players.position from the waiting controller — turn can be wrong for non-turn choices
+        // (e.g. selecting active after knockout, selecting target — these happen when it's not your turn)
         const currentPlayer = ctx.handlerData.players.position;
 
         if (process.env.DEBUG_LEGAL_ACTIONS === 'true') {

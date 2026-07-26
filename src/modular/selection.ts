@@ -37,6 +37,7 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
         let latestResponseTypes = expectedResponseTypes;
 
         for (;;) {
+            // One GameContext covers state inspection, validation, and waiting-player extraction
             const ctx = new GameContext(currentGameState, this.gameAdapterConfig);
 
             if (ctx.isEnded()) {
