@@ -476,13 +476,17 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
         }
 
         const count = pendingSelection.count || 1;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const allowRepeats: boolean = (pendingSelection as any).allowRepeats ?? false;
         const strippedTargets = availableTargets.map(t => ({ playerId: t.playerId, fieldIndex: t.fieldIndex }));
 
         if (count === 1) {
             return strippedTargets.map(t => new SelectTargetResponseMessage([ t ]));
         }
 
-        const combinations = this.generateTargetCombinations(strippedTargets, count);
+        const combinations = allowRepeats
+            ? this.generateTargetCombinationsWithRepetition(strippedTargets, count)
+            : this.generateTargetCombinations(strippedTargets, count);
         return combinations.map(combo => new SelectTargetResponseMessage(combo));
     }
 
@@ -504,6 +508,34 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
             const subCombinations = this.generateTargetCombinations(tail, size - 1);
             for (const subCombo of subCombinations) {
                 combinations.push([ head, ...subCombo ]);
+            }
+        }
+        return combinations;
+    }
+
+    /**
+     * Generates combinations with replacement (multiset combinations) of `size` picks from `targets`,
+     * where the same option may be chosen more than once and order doesn't matter. There are
+     * C(targets.length + size - 1, size) such combinations. Used for "distribute N interchangeable
+     * units across chosen targets in any combination" selections (e.g. splitting several energy
+     * units across benched Pokemon, including stacking all of them on one).
+     */
+    private generateTargetCombinationsWithRepetition(targets: Array<{ playerId: number; fieldIndex: number }>, size: number): Array<Array<{ playerId: number; fieldIndex: number }>> {
+        if (targets.length === 0) {
+            return size === 0 ? [[]] : [];
+        }
+        if (size === 0) {
+            return [[]];
+        }
+
+        const combinations: Array<Array<{ playerId: number; fieldIndex: number }>> = [];
+        for (let i = 0; i < targets.length; i++) {
+            // Allow index i to be reused (that's the "with replacement" part), but never go back
+            // to an earlier index - that's what keeps order irrelevant and avoids duplicate multisets.
+            const rest = targets.slice(i);
+            const subCombinations = this.generateTargetCombinationsWithRepetition(rest, size - 1);
+            for (const subCombo of subCombinations) {
+                combinations.push([ targets[i], ...subCombo ]);
             }
         }
         return combinations;
@@ -555,14 +587,21 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
     private generateSelectEnergyActions(handlerData: HandlerData): ResponseMessage[] {
         const pending = handlerData.turnState.pendingSelection;
         if (!pending || !isPendingEnergySelection(pending)) {
-            return []; 
+            return [];
         }
         const count = pending.count;
         const options = pending.availableEnergy;
         if (options.length === 0) {
-            return []; 
+            return [];
         }
-        const targets = options.map(o => ({ playerId: o.playerId, fieldIndex: o.fieldIndex }));
+        /*
+         * options entries are branched on (playerId, fieldIndex, energyType): creature-choice options
+         * differ by (playerId, fieldIndex); type-choice options (e.g. picking which energy type to
+         * take from the discard pile) can share the same (playerId, fieldIndex) and differ only by
+         * energyType. Combination generation works by array position, not value equality, so
+         * carrying the extra energyType field through doesn't affect how combinations are built.
+         */
+        const targets = options.map(o => ({ playerId: o.playerId, fieldIndex: o.fieldIndex, energyType: o.energyType }));
         return this.generateTargetCombinations(targets, count).map(combo => new SelectEnergyResponseMessage(combo));
     }
 

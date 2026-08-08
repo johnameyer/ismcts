@@ -2,13 +2,14 @@ import { expect } from 'chai';
 import { ControllerUtils } from '@cards-ts/pocket-tcg/dist/utils/controller-utils.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
-import { 
-    PlayCardResponseMessage, 
-    AttackResponseMessage, 
+import {
+    PlayCardResponseMessage,
+    AttackResponseMessage,
     EndTurnResponseMessage,
     AttachEnergyResponseMessage,
     RetreatResponseMessage,
     SetupCompleteResponseMessage,
+    SelectTargetResponseMessage,
 } from '@cards-ts/pocket-tcg/dist/messages/response/index.js';
 import { LegalActionsGenerator } from '../../src/legal-actions-generator.js';
 import { MAIN_ACTION_RESPONSE_TYPES } from '../../src/adapters/pocket-tcg/response-types.js';
@@ -271,6 +272,93 @@ describe('LegalActionsGenerator', () => {
             );
 
             expect(stadiumActions).to.have.length(0);
+        });
+    });
+
+    /*
+     * "Attach 3 interchangeable energy units across chosen Pokemon in any way you like" needs a
+     * combinations-WITH-repetition action space (the same target may appear more than once), as opposed
+     * to the plain n-choose-k combinations used for "pick 2 distinct Pokemon".
+     */
+    describe('generateTargetSelectionActions with allowRepeats', () => {
+        function handlerDataWithPendingFieldSelection(availableTargets: Array<{ playerId: number; fieldIndex: number }>, count: number, allowRepeats: boolean) {
+            return {
+                turn: 0,
+                setup: { playersReady: [ true, true ] },
+                hand: { hand: [], sizes: [ 0, 0 ] },
+                field: { creatures: [[], []] },
+                turnState: {
+                    pendingSelection: {
+                        selectionType: 'field',
+                        count,
+                        availableTargets,
+                        allowRepeats,
+                    },
+                },
+            } as unknown as ReturnType<typeof ControllerUtils.createPlayerView>;
+        }
+
+        it('generates C(n+k-1, k) combinations-with-replacement when allowRepeats is set (3 targets, count 3 -> 10)', () => {
+            const cardRepository = new MockCardRepository();
+            const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+
+            const availableTargets = [
+                { playerId: 0, fieldIndex: 0 },
+                { playerId: 0, fieldIndex: 1 },
+                { playerId: 0, fieldIndex: 2 },
+            ];
+            const handlerData = handlerDataWithPendingFieldSelection(availableTargets, 3, true);
+
+            const actions = gameAdapterConfig.actionsGenerator.generateCandidateActions(handlerData, 0, [ 'select-target-response' ]);
+
+            expect(actions.length).to.equal(10, 'C(3+3-1, 3) = 10 distinct multisets');
+            for (const action of actions) {
+                expect(action).to.be.instanceOf(SelectTargetResponseMessage);
+            }
+
+            // Every action must be a genuinely distinct multiset (as a sorted-fieldIndex signature).
+            const signatures = actions.map(a => (a as InstanceType<typeof SelectTargetResponseMessage>).targets
+                .map(t => t.fieldIndex)
+                .sort((x, y) => x - y)
+                .join(','));
+            expect(new Set(signatures).size).to.equal(10, 'No two actions should represent the same multiset');
+        });
+
+        it('handles count > distinct targets when allowRepeats is set (2 targets, count 3 -> 4)', () => {
+            const cardRepository = new MockCardRepository();
+            const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+
+            const availableTargets = [
+                { playerId: 0, fieldIndex: 0 },
+                { playerId: 0, fieldIndex: 1 },
+            ];
+            const handlerData = handlerDataWithPendingFieldSelection(availableTargets, 3, true);
+
+            const actions = gameAdapterConfig.actionsGenerator.generateCandidateActions(handlerData, 0, [ 'select-target-response' ]);
+
+            // C(2+3-1, 3) = C(4,3) = 4
+            expect(actions.length).to.equal(4);
+        });
+
+        it('still generates only n-choose-k combinations without allowRepeats (3 targets, count 2 -> 3)', () => {
+            const cardRepository = new MockCardRepository();
+            const gameAdapterConfig = createGameAdapterConfig(cardRepository);
+
+            const availableTargets = [
+                { playerId: 0, fieldIndex: 0 },
+                { playerId: 0, fieldIndex: 1 },
+                { playerId: 0, fieldIndex: 2 },
+            ];
+            const handlerData = handlerDataWithPendingFieldSelection(availableTargets, 2, false);
+
+            const actions = gameAdapterConfig.actionsGenerator.generateCandidateActions(handlerData, 0, [ 'select-target-response' ]);
+
+            expect(actions.length).to.equal(3, 'C(3,2) = 3, no repeated-target combinations');
+            for (const action of actions) {
+                const targets = (action as InstanceType<typeof SelectTargetResponseMessage>).targets;
+                const fieldIndexes = targets.map(t => t.fieldIndex);
+                expect(new Set(fieldIndexes).size).to.equal(fieldIndexes.length, 'No duplicate target within a single action');
+            }
         });
     });
 
