@@ -3,7 +3,6 @@ import { Message, IndexedControllers, ControllerState } from '@cards-ts/core';
 import { LegalActionsGenerator } from '../legal-actions-generator.js';
 import { getUCB1Score } from '../utils/ismcts-node-utils.js';
 import { isWaiting } from '../utils/waiting-state-utils.js';
-import { applyActionResumeAndCapture } from '../utils/driver-orchestrator.js';
 import { RoundEndDetector, GameAdapterConfig } from '../adapter-config.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { ISMCTSNode, ISMCTSRoot } from '../ismcts-node.js';
@@ -16,9 +15,11 @@ import { GameContext } from '../utils/game-context.js';
  * This phase traverses the tree from root to leaf using UCB1 selection policy,
  * but only considers children whose actions are valid in the current determinization.
  *
- * Uses GameContext to unify driver creation for state inspection and validation.
- * applyActionResumeAndCapture handles the apply+resume+capture step separately
- * since it requires capture handlers in the driver.
+ * Uses GameContext to unify driver creation for state inspection, validation, and
+ * (via resumeAndCapture) applying the selected action - one driver creation per
+ * tree-depth level walked instead of two (previously: one GameContext for
+ * inspection/validation, then a second, separate driver built by
+ * applyActionResumeAndCapture to apply the action).
  */
 export class ISMCTSSelection<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers> {
     constructor(
@@ -64,12 +65,9 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
 
             const selectedChild = this.selectBestChild(validChildren);
 
-            const { newGameState, capturedResponseTypes } = applyActionResumeAndCapture(
-                currentGameState,
-                selectedChild.lastAction,
-                ctx.waitingPlayer,
-                this.gameAdapterConfig,
-            );
+            // Reuse ctx's driver (already built with capture handlers) instead of
+            // constructing a second driver via applyActionResumeAndCapture.
+            const { newState: newGameState, capturedResponseTypes } = ctx.resumeAndCapture(selectedChild.lastAction);
 
             currentGameState = newGameState;
             latestResponseTypes = capturedResponseTypes as readonly (ResponseMessage['type'])[];
