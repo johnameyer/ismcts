@@ -248,6 +248,10 @@ export function simulateToCompletion<ResponseMessage extends Message, Controller
         driver.resume();
         moveCount++;
     }
-    
-    return driver.getState();
+
+    // getRawState() instead of getState(): the caller (simulation.ts's
+    // simulate()) only reads specific fields via isRoundEnded/getRoundReward/
+    // getTimeoutReward to compute a scalar reward - nothing clones this
+    // forward or needs typed instances restored.
+    return driver.getRawState();
 }
