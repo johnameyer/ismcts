@@ -55,6 +55,14 @@ export interface GameDriver<ResponseMessage extends Message, Controllers extends
     getState(): ControllerState<Controllers>;
 
     /**
+     * Same as getState(), but skips type-restoration (reconstruct()) for
+     * callers that don't need it and provide their own copy/isolation
+     * guarantee downstream. See GenericGameState.getRawState() in
+     * @cards-ts/core for the full explanation of when this is safe.
+     */
+    getRawState(): ControllerState<Controllers>;
+
+    /**
      * Advance game state machine to next decision point.
      * 
      * Pattern - State Machine Progression:

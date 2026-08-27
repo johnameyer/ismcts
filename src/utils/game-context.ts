@@ -55,6 +55,13 @@ export class GameContext<ResponseMessage extends Message, Controllers extends In
 
     /**
      * Apply an action using the context's driver (no additional deep copy).
+     * Uses getRawState() instead of getState(): the caller (expansion.ts)
+     * immediately feeds newState into a fresh driverFactory call, which
+     * deep-copies it via structuredClone - so getState()'s reconstruct()
+     * pass would just be producing an independent copy that gets thrown
+     * away and redone a moment later. Safe because pocket-tcg (the only
+     * game ISMCTS drives) never has anything for reconstruct()'s
+     * type-restoration switch to match - see getRawState()'s docs.
      * Single-use: do not call twice on the same context, and not combined
      * with resumeAndCapture.
      */
@@ -67,15 +74,19 @@ export class GameContext<ResponseMessage extends Message, Controllers extends In
         if (!wasValid) {
             throw new Error('Action application failed after validation passed');
         }
-        return { newState: this.driver.getState(), actingPlayer: this.waitingPlayer };
+        return { newState: this.driver.getRawState(), actingPlayer: this.waitingPlayer };
     }
 
     /**
      * Apply an action, resume to the next decision point, and capture the
      * response types expected there - using the context's driver (no
      * additional deep copy vs. the old pattern of applying via a fresh
-     * applyActionResumeAndCapture call). Single-use: do not call twice on
-     * the same context, and not combined with applyAction.
+     * applyActionResumeAndCapture call). Uses getRawState() instead of
+     * getState() - see applyAction()'s docs above for why this is safe:
+     * the caller (selection.ts's tree-walk loop) immediately feeds newState
+     * into the next GameContext's driverFactory call, which structuredClone's
+     * it anyway. Single-use: do not call twice on the same context, and not
+     * combined with applyAction.
      */
     resumeAndCapture(action: ResponseMessage): { newState: ControllerState<Controllers>, capturedResponseTypes: (ResponseMessage['type'])[] } {
         const validationError = this.driver.getValidationError(this.waitingPlayer, action);
@@ -88,7 +99,7 @@ export class GameContext<ResponseMessage extends Message, Controllers extends In
         }
         this.driver.resume();
         return {
-            newState: this.driver.getState(),
+            newState: this.driver.getRawState(),
             capturedResponseTypes: this.captureStrategy.getCapturedResponseTypes(),
         };
     }
