@@ -1,90 +1,41 @@
-import { Message, IndexedControllers, ControllerState, ControllerHandlerState } from '@cards-ts/core';
-import { DriverFactory, GameAdapterConfig } from '../adapter-config.js';
+import { Message, IndexedControllers, ControllerState } from '@cards-ts/core';
+import { DriverFactory } from '../adapter-config.js';
 import { FrameworkControllers } from '../ismcts-types.js';
-import { CaptureDecisionStrategy } from '../strategies/capture-decision-strategy.js';
 import type { DecisionStrategy } from '../strategies/decision-strategy.js';
-import { extractWaitingPlayer } from './waiting-state-utils.js';
-import type { GameDriver } from './driver-types.js';
-import { createGenericPlayerView } from './generic-player-view.js';
-
-export type ValidatorFn<ResponseMessage extends Message> = (player: number, action: ResponseMessage) => string | undefined;
 
 /**
  * Generic driver orchestration patterns for ISMCTS phases.
- * 
- * Each orchestration function matches the exact signature and behavior
- * expected by its calling phase (Expansion or Simulation).
+ *
+ * GameContext (game-context.ts) now owns the selection/expansion driver
+ * lifecycle - applyAction/resumeAndCapture reuse one driver per tree-depth
+ * level instead of building a fresh one per call, which is what
+ * validateActionWithDriver, the standalone applyAction, applyActionResumeAndCapture,
+ * and getGameStateAndWaitingPlayer used to do. Those four had zero remaining
+ * callers (confirmed via repo-wide grep) once GameContext took over and were
+ * removed as dead code - keeping them around risked a future caller reaching
+ * for the slower non-driver-reusing pattern by mistake.
+ *
+ * What's left here is what's still actually used outside GameContext:
+ * - applyActionAndResume: the heuristic "would this action win immediately"
+ *   check in adapter.ts, which builds its own short-lived driver per
+ *   candidate action (not part of the main selection/expansion/simulation
+ *   loop, so not folded into GameContext).
+ * - simulateToCompletion: the rollout phase's own driver, which needs
+ *   different (random-decision) handlers than GameContext's
+ *   capture-handler-equipped driver, so it can't reuse a GameContext either.
  */
-
-/**
- * Validate an action using the driver's getValidationError method.
- * Uses the same validation path as handleEvent.
- * 
- * @param driver - GameDriver instance with initialized controllers
- * @param playerIndex - Which player is making this action
- * @param action - Action to validate
- * @returns Validation error message, or undefined if valid
- */
-export function validateActionWithDriver<ResponseMessage extends Message, Controllers extends IndexedControllers>(
-    driver: GameDriver<ResponseMessage, Controllers>,
-    playerIndex: number,
-    action: ResponseMessage,
-): string | undefined {
-    return driver.getValidationError(playerIndex, action);
-}
-
-/**
- * Apply a single action to advance state without resuming.
- * Returns the NON-WAITING state after action for expansion.
- * 
- * PRECONDITION:
- * - gameState must be WAITING (paused at decision point)
- * 
- * POSTCONDITION:
- * - Returns NON-WAITING state (ready for simulation to resume)
- * 
- * @param gameState - Current game state (should be waiting at decision point)
- * @param action - Action to apply
- * @param playerIndex - Which player is making this action
- * @param driverFactory - Factory function to create drivers (with no-op handlers)
- * @returns New game state after applying action (non-waiting, ready for simulate)
- * @throws Error if action validation fails
- */
-export function applyAction<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers>(
-    gameState: ControllerState<Controllers>,
-    action: ResponseMessage,
-    playerIndex: number,
-    driverFactory: DriverFactory<ResponseMessage, Controllers>,
-): ControllerState<Controllers> {
-    // driverFactory (withDeepCopyWrapper) copies state internally
-    const driver = driverFactory(gameState, []);
-    
-    // Get validation error BEFORE calling handleEvent (getValidationError runs validation fresh)
-    const validationError = driver.getValidationError(playerIndex, action);
-    if (validationError) {
-        throw new Error(`Action validation failed: ${validationError}`);
-    }
-    
-    // Now apply the action with state intact
-    const wasValid = driver.handleEvent(playerIndex, action, undefined);
-    if (!wasValid) {
-        throw new Error('Action application failed after validation passed');
-    }
-    
-    // Return NON-WAITING state (do NOT resume - let simulation handle that)
-    return driver.getState();
-}
 
 /**
  * Apply a single action and advance to next decision point.
- * Used by Expansion phase to apply one specific action and get the resulting state.
- * 
+ * Used by the "guaranteed immediate win" heuristic check in adapter.ts to
+ * apply one candidate action and see if it ends the game.
+ *
  * PRECONDITION:
  * - gameState must be WAITING (paused at decision point)
- * 
+ *
  * POSTCONDITION:
  * - Returns NON-WAITING state (ready for simulation)
- * 
+ *
  * @param gameState - Current game state (should be waiting at decision point)
  * @param action - Action to apply
  * @param playerIndex - Which player is making this action
@@ -100,118 +51,38 @@ export function applyActionAndResume<ResponseMessage extends Message, Controller
 ): ControllerState<Controllers> {
     // driverFactory (withDeepCopyWrapper) copies state internally
     const driver = driverFactory(gameState, []);
-    
+
     // Apply the action
     const wasValid = driver.handleEvent(playerIndex, action, undefined);
     if (!wasValid) {
         throw new Error('Action validation failed during expansion');
     }
-    
+
     // Resume to next decision point (or game end)
     driver.resume();
-    
-    const resultState = driver.getState();
-    
-    return resultState;
-}
 
-/**
- * Apply action, resume to next decision point, and capture expected response types.
- * Used by Selection phase to apply an action and learn what response types are needed next.
- * 
- * PRECONDITION:
- * - gameState must be WAITING at the current decision point
- * - playerIndex is the player making the action
- * - action is valid for this player and state
- * 
- * POSTCONDITION:
- * - Action has been applied
- * - Game state has been resumed to next decision point (or game completion)
- * - Returns new state and the response types that were captured at the decision point
- * 
- * @param gameState - Current game state (must be WAITING)
- * @param action - Action to apply
- * @param playerIndex - Player making the action
- * @param gameAdapterConfig - Configuration with driverFactory and other adapters
- * @returns { newGameState, capturedResponseTypes }
- */
-export function applyActionResumeAndCapture<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers>(
-    gameState: ControllerState<Controllers>,
-    action: ResponseMessage,
-    playerIndex: number,
-    gameAdapterConfig: GameAdapterConfig<ResponseMessage, Controllers>,
-): { newGameState: ControllerState<Controllers>, capturedResponseTypes: (ResponseMessage['type'])[] } {
-    // driverFactory (withDeepCopyWrapper) copies state internally
-    const captureStrategy = new CaptureDecisionStrategy(gameAdapterConfig);
-    const captureHandler = gameAdapterConfig.createHandler(captureStrategy);
-    const driver = gameAdapterConfig.driverFactory(gameState, [ captureHandler, captureHandler ]);
-    
-    // Apply the action
-    const wasValid = driver.handleEvent(playerIndex, action, undefined);
-    if (!wasValid) {
-        throw new Error('Action validation failed during applyActionResumeAndCapture');
-    }
-    
-    // Resume to next decision point (capture handler will record response types)
-    driver.resume();
-    
-    // Extract captured response types from the capture strategy
-    const capturedResponseTypes = captureStrategy.getCapturedResponseTypes();
-    
-    return {
-        newGameState: driver.getState(),
-        capturedResponseTypes: capturedResponseTypes,
-    };
-}
-
-/**
- * Get game state, waiting player, and player view information.
- * Abstraction for inspecting state during selection phase.
- * 
- * When waiting.waiting is:
- * - A number N: N players must respond (not including those in responded array)
- * - An array: Players listed in array must respond
- * 
- * PRECONDITION:
- * - gameState must be WAITING (paused at decision point)
- * 
- * POSTCONDITION:
- * - Returns extracted game state, current waiting player index, and handlerData for that player
- * 
- * @param gameState - Current game state (must be waiting)
- * @param driverFactory - Factory function to create drivers (with no-op handlers)
- * @returns Object with extracted game state, waiting player index, and handlerData for legal action generation
- * @throws Error if game state cannot be read or waiting player is invalid
- */
-export function getGameStateAndWaitingPlayer<ResponseMessage extends Message, Controllers extends IndexedControllers & FrameworkControllers>(
-    gameState: ControllerState<Controllers>,
-    driverFactory: DriverFactory<ResponseMessage, Controllers>,
-): { validateAction: ValidatorFn<ResponseMessage>, state: ControllerState<Controllers>, waitingPlayer: number, handlerData: ControllerHandlerState<Controllers> } {
-    // driverFactory (withDeepCopyWrapper) copies state internally — no need to copy here
-    const driver = driverFactory(gameState, []);
-
-    const waitingPlayer = extractWaitingPlayer(driver.gameState.controllers.waiting.get());
-    const handlerData = createGenericPlayerView(driver.gameState.controllers, waitingPlayer);
-
-    return {
-        validateAction: (player, action) => driver.getValidationError(player, action),
-        state: driver.getState(),
-        waitingPlayer,
-        handlerData,
-    };
+    /*
+     * getRawState() instead of getState(): the caller (adapter.ts's
+     * findGuaranteedImmediateWinningAction) only reads isGameEnded/
+     * getRewardForPlayer off the result to decide whether this candidate
+     * action wins immediately - nothing clones this state forward, and
+     * (same reasoning as GameContext's fix) pocket-tcg never needs
+     * reconstruct()'s type-restoration.
+     */
+    return driver.getRawState();
 }
 
 /**
  * Run game to completion with random decision making.
  * Used by Simulation phase to play out from a non-waiting state to completion.
- * 
+ *
  * PRECONDITION:
  * - gameState must be NON-WAITING (post-action state, ready for resume)
- * 
+ *
  * POSTCONDITION:
  * - Plays game to completion or timeout
  * - Returns final game state for reward calculation
- * 
+ *
  * @param gameState - Current game state (must NOT be waiting)
  * @param createRandomStrategy - Factory to create RandomDecisionStrategy
  * @param createHandler - Factory to wrap strategy in a game handler
@@ -232,7 +103,7 @@ export function simulateToCompletion<ResponseMessage extends Message, Controller
     const randomHandler = createHandler(randomStrategy);
     const handlers = [ randomHandler, randomHandler ] as unknown[];
     const driver = driverFactory(gameState, handlers);
-    
+
     let moveCount = 0;
     /*
      * Process auto-phases (knockouts, etc.) even if not initially waiting
@@ -242,7 +113,7 @@ export function simulateToCompletion<ResponseMessage extends Message, Controller
     driver.handleSyncResponses();
     driver.resume();
     moveCount++;
-    
+
     while (driver.isWaitingOnPlayer() && moveCount < maxDepth) {
         driver.handleSyncResponses();
         driver.resume();
