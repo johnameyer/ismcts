@@ -37,20 +37,45 @@ export class GameContext<ResponseMessage extends Message, Controllers extends In
 
     private readonly captureStrategy: CaptureDecisionStrategy<ResponseMessage, Controllers, ControllerHandlerState<Controllers>>;
 
+    /**
+     * @param ownsState Set true only when `state` is provably exclusively
+     * owned by this call and about to be discarded regardless of what
+     * happens here (e.g. selection.ts's tree-walk loop, feeding the
+     * previous iteration's own `resumeAndCapture().newState` - a raw
+     * reference into a driver that's discarded the moment this constructor
+     * returns, never read by anything else). When true and the adapter
+     * provides a `rawDriverFactory`, skips the defensive deep copy that
+     * `driverFactory` always performs - GameContext construction happens
+     * once per tree-depth level per iteration, so that copy was a
+     * measured dominant cost. Defaults to false (always copy), matching
+     * prior behavior, for any call site that can't make this guarantee.
+     */
     constructor(
         state: ControllerState<Controllers>,
         private readonly gameAdapterConfig: GameAdapterConfig<ResponseMessage, Controllers>,
+        ownsState = false,
     ) {
         this.preActionState = state;
         this.captureStrategy = new CaptureDecisionStrategy(gameAdapterConfig);
         const captureHandler = gameAdapterConfig.createHandler(this.captureStrategy);
-        this.driver = gameAdapterConfig.driverFactory(state, [ captureHandler, captureHandler ]);
+        const factory = (ownsState && gameAdapterConfig.rawDriverFactory) || gameAdapterConfig.driverFactory;
+        this.driver = factory(state, [ captureHandler, captureHandler ]);
         this.waitingPlayer = extractWaitingPlayer(this.driver.gameState.controllers.waiting.get());
         this.handlerData = createGenericPlayerView(this.driver.gameState.controllers, this.waitingPlayer);
     }
 
     validateAction(player: number, action: ResponseMessage): string | undefined {
         return this.driver.getValidationError(player, action);
+    }
+
+    /**
+     * Live controllers for this context's driver. Lets callers that already
+     * hold a GameContext reuse its already-constructed driver for read-only
+     * queries (e.g. real damage resolution) instead of building a separate
+     * one just to ask a question this context's driver could already answer.
+     */
+    get controllers(): Controllers {
+        return this.driver.gameState.controllers;
     }
 
     /**

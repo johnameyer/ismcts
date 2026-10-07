@@ -226,17 +226,11 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
                 continue;
             }
 
-            const possibleEvolutionIds = new Set<string>();
-            for (const creatureId of this.cardRepository.getAllCreatureIds()) {
-                try {
-                    const evo = this.cardRepository.getCreature(creatureId);
-                    if ((evo as Record<string, unknown>).previousStageName === creatureData.name) {
-                        possibleEvolutionIds.add(creatureId);
-                    }
-                } catch {
-                    // skip
-                }
-            }
+            // getEvolutionsOf is a prebuilt O(1) reverse-evolution index -
+            // avoids scanning every creature in the card database for every
+            // candidate creature on every legal-action generation call, which
+            // is a hot path during ISMCTS tree search.
+            const possibleEvolutionIds = new Set<string>(this.cardRepository.getEvolutionsOf(creatureData.name));
 
             const evolutionCards = hand.filter(card => card.type === 'creature' && possibleEvolutionIds.has(card.templateId));
             evolutionCards.forEach(card => {
@@ -582,11 +576,21 @@ export class PocketTCGActionsGenerator implements ActionsGenerator<ResponseMessa
 
 /**
  * Pocket-TCG driver factory for validation and simulation.
- * 
+ *
  * Creates a game driver instance for both action validation and MCTS simulation.
  * Handles Pocket-TCG specific setup and game factory instantiation.
+ *
+ * Returns both the defensively-copying `driverFactory` (the safe default -
+ * clones its input state before building a driver, so callers can't
+ * accidentally alias/mutate state they don't own) and the underlying
+ * `rawDriverFactory` (no clone). The raw variant exists for call sites that
+ * can prove the state they're passing in is already exclusively owned and
+ * about to be discarded regardless (e.g. GameContext's constructor, when
+ * fed a state produced by another GameContext's own getRawState() the
+ * instant before that other GameContext goes out of scope) - see
+ * GameContext's `ownsState` parameter.
  */
-export function createPocketTCGDriverFactory(cardRepository: CardRepository): DriverFactory<ResponseMessage, Controllers> {
+export function createPocketTCGDriverFactory(cardRepository: CardRepository): { driverFactory: DriverFactory<ResponseMessage, Controllers>; rawDriverFactory: DriverFactory<ResponseMessage, Controllers> } {
     // Compute once — these are static for the lifetime of the factory
     const factory = gameFactory(cardRepository);
     const params = new GameSetup().getDefaultParams();
@@ -619,8 +623,8 @@ export function createPocketTCGDriverFactory(cardRepository: CardRepository): Dr
         return frameworkDriver;
     };
     
-    // Wrap with automatic deep copy to prevent state mutations
-    return withDeepCopyWrapper(baseFactory);
+    // Wrap with automatic deep copy to prevent state mutations (the safe default)
+    return { driverFactory: withDeepCopyWrapper(baseFactory), rawDriverFactory: baseFactory };
 }
 
         

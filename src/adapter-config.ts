@@ -139,6 +139,18 @@ export interface GameAdapterConfig<ResponseMessage extends Message, Controllers 
     driverFactory: DriverFactory<ResponseMessage, Controllers>;
 
     /**
+     * Same as driverFactory, but without the defensive deep copy of the
+     * input state. Optional - defaults to driverFactory (the safe,
+     * always-clone behavior) when a game adapter doesn't provide one.
+     * Only use this for a state that's provably exclusively owned by the
+     * caller and about to be discarded regardless (see GameContext's
+     * `ownsState` parameter) - using it for a state that's shared or read
+     * again elsewhere risks a driver silently mutating data another part of
+     * the search still depends on.
+     */
+    rawDriverFactory?: DriverFactory<ResponseMessage, Controllers>;
+
+    /**
      * Game-specific round end condition detector.
      * Determines if the current round has ended based on game rules.
      * A round is a discrete phase after which points are scored and players
@@ -180,11 +192,18 @@ export interface GameAdapterConfig<ResponseMessage extends Message, Controllers 
      * that is guaranteed to end the round in a win for the acting player.
      *
      * Return null when no guaranteed immediate win exists.
+     *
+     * @param controllers Live controllers from the caller's already-built
+     * GameContext for this exact handlerData/decision point - lets an
+     * implementation resolve real (not estimated) values like attack damage
+     * against them instead of constructing its own separate driver just to
+     * ask a read-only question the caller's driver could already answer.
      */
     getImmediateWinningAction?: (
         handlerData: ControllerHandlerState<Controllers>,
         expectedResponseTypes: readonly (ResponseMessage['type'])[],
         legalActions: ResponseMessage[],
+        controllers: Controllers,
     ) => ResponseMessage | null;
 
     /**

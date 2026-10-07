@@ -46,7 +46,6 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
     }
 
     getBestActionFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): ResponseMessage | null {
-        // One context for early-exit check; getActionsFromHandlerData creates its own context if needed
         const earlyCtx = new GameContext(this.gameAdapterConfig.reconstructGameStateForValidation(handlerData), this.gameAdapterConfig);
         const earlyLegalActions = this.legalActionsGenerator.generateLegalActions(earlyCtx, responseTypes);
 
@@ -58,8 +57,17 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
             return earlyLegalActions[0];
         }
 
-        // Multiple legal actions - run MCTS to find best one
-        const actions = this.getActionsFromHandlerData(handlerData, responseTypes, config);
+        /*
+         * Multiple legal actions - run MCTS to find best one. Pass the
+         * context/legal-actions just computed above instead of letting
+         * getActionsFromHandlerData rebuild them from scratch: both did the
+         * exact same reconstructGameStateForValidation(handlerData) +
+         * GameContext construction + generateLegalActions call, so every
+         * decision point with >1 legal action (i.e. almost every real
+         * decision in the game) was paying for a full state materialization
+         * and driver build twice.
+         */
+        const actions = this.getActionsFromHandlerData(handlerData, responseTypes, config, { ctx: earlyCtx, legalActions: earlyLegalActions });
 
         if (actions.length === 0) {
             // No tree actions, fall back to first legal action
@@ -69,34 +77,63 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
         return this.selectBestFromActions(actions);
     }
 
-    getActionsFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG): { action: ResponseMessage | null, score: number }[] {
+    /**
+     * @param precomputed Optional {ctx, legalActions} already built by
+     * getBestActionFromHandlerData's early-exit check for this exact
+     * handlerData/responseTypes - reused instead of rebuilding when
+     * present. Only getBestActionFromHandlerData should pass this; other
+     * callers (there are none currently) should omit it.
+     */
+    getActionsFromHandlerData(handlerData: ControllerHandlerState<Controllers>, responseTypes: readonly (ResponseMessage['type'])[], config: ISMCTSConfig = DEFAULT_ISMCTS_CONFIG, precomputed?: { ctx: GameContext<ResponseMessage, Controllers>, legalActions: ResponseMessage[] }): { action: ResponseMessage | null, score: number }[] {
         // Check for only one legal action - return immediately without exploration
-        const ctx = new GameContext(this.gameAdapterConfig.reconstructGameStateForValidation(handlerData), this.gameAdapterConfig);
-        const currentLegalActions = this.legalActionsGenerator.generateLegalActions(ctx, responseTypes);
-        
+        const ctx = precomputed?.ctx ?? new GameContext(this.gameAdapterConfig.reconstructGameStateForValidation(handlerData), this.gameAdapterConfig);
+        const currentLegalActions = precomputed?.legalActions ?? this.legalActionsGenerator.generateLegalActions(ctx, responseTypes);
+
         if (currentLegalActions.length === 1) {
             // Score cannot be calculated without running simulations; 0.5 (neutral) is a placeholder
             return [{ action: currentLegalActions[0], score: 0.5 }];
         }
-        
+
         const currentPlayer = handlerData.players.position;
         const isLoggingEnabled = process.env.ISMCTS_ITERATION_LOG === 'true';
     
         const root = this.createRootNode();
-        
+
+        let failedIterations = 0;
         for (let i = 0; i < config.iterations; i++) {
-            const gameState = this.determinization.determinize(handlerData);
-            this.runSingleIteration(root, gameState, config.maxDepth, responseTypes, currentPlayer);
-            
+            try {
+                const gameState = this.determinization.determinize(handlerData);
+                this.runSingleIteration(root, gameState, config.maxDepth, responseTypes, currentPlayer);
+            } catch (error) {
+                /*
+                 * A single bad iteration (e.g. a rollout that reaches a rare
+                 * buggy game state) used to propagate straight out of this
+                 * method, discarding every other already-completed
+                 * iteration's contribution to `root` and falling all the way
+                 * back to ISMCTSDecisionStrategy's random-action fallback -
+                 * throwing away the entire move's iteration budget over one
+                 * bad rollout. Skip just the failed iteration instead, but
+                 * log every one (not just a summary) so a recurring bug
+                 * shows up clearly rather than being silently absorbed.
+                 */
+                failedIterations++;
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                console.warn(`[ISMCTS] iteration ${i + 1}/${config.iterations} failed and was skipped: ${errorMsg}`);
+                continue;
+            }
+
             // Log at iteration milestones
             if (isLoggingEnabled && ITERATION_LOG_MILESTONES.includes(i + 1)) {
                 const actions = this.getAllActionsWithScores(root);
                 this.logIterationMilestone(i + 1, actions, root.children.length, currentLegalActions.length);
             }
         }
-        
+        if (failedIterations > 0) {
+            console.warn(`[ISMCTS] ${failedIterations}/${config.iterations} iterations failed and were skipped`);
+        }
+
         const actions = this.getAllActionsWithScores(root);
-        
+
         return actions.sort((a, b) => b.score - a.score);
     }
 
@@ -114,17 +151,29 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
 
         const root = this.createRootNode();
 
+        let failedIterations = 0;
         for (let i = 0; i < config.iterations; i++) {
-            const iterationState = deepCopyState(waitingGameState);
-            this.runSingleIteration(root, iterationState, config.maxDepth, expectedResponseTypes, playerIndex);
-            
+            try {
+                const iterationState = deepCopyState(waitingGameState);
+                this.runSingleIteration(root, iterationState, config.maxDepth, expectedResponseTypes, playerIndex);
+            } catch (error) {
+                // See getActionsFromHandlerData: skip just the failed iteration, logging every one.
+                failedIterations++;
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                console.warn(`[ISMCTS] iteration ${i + 1}/${config.iterations} failed and was skipped: ${errorMsg}`);
+                continue;
+            }
+
             // Log at iteration milestones
             if (isLoggingEnabled && ITERATION_LOG_MILESTONES.includes(i + 1)) {
                 const actions = this.getAllActionsWithScores(root);
                 this.logIterationMilestone(i + 1, actions, root.children.length, expectedResponseTypes.length);
             }
         }
-        
+        if (failedIterations > 0) {
+            console.warn(`[ISMCTS] ${failedIterations}/${config.iterations} iterations failed and were skipped`);
+        }
+
         const actions = this.getAllActionsWithScores(root);
         
         return actions.sort((a, b) => b.score - a.score);

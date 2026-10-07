@@ -4,7 +4,7 @@ import { GameAdapterConfig } from '../adapter-config.js';
 import { GameContext } from '../utils/game-context.js';
 import { FrameworkControllers } from '../ismcts-types.js';
 import { DecisionStrategy } from './decision-strategy.js';
-import { RandomDecisionStrategy } from './random-decision-strategy.js';
+import { selectRandomAction } from './random-decision-strategy.js';
 
 /**
  * Enhanced random strategy that prioritizes guaranteed immediate wins
@@ -16,20 +16,28 @@ export class EnhancedRandomDecisionStrategy<
 > implements DecisionStrategy<ResponseMessage, Controllers> {
     private legalActionsGenerator: LegalActionsGenerator<ResponseMessage, Controllers>;
 
-    private randomStrategy: RandomDecisionStrategy<ResponseMessage, Controllers>;
-
     constructor(
         private gameAdapterConfig: GameAdapterConfig<ResponseMessage, Controllers>,
     ) {
         this.legalActionsGenerator = new LegalActionsGenerator(
             gameAdapterConfig.actionsGenerator,
         );
-        this.randomStrategy = new RandomDecisionStrategy(gameAdapterConfig);
     }
 
     getAction(handlerData: ControllerHandlerState<Controllers>, expectedResponseTypes: readonly (ResponseMessage['type'])[]): ResponseMessage | null {
+        /*
+         * reconstructGameStateForValidation(handlerData) builds a fresh
+         * object every call, held by nothing else at this point - ownsState
+         * lets GameContext skip driverFactory's defensive clone of it
+         * (rawDriverFactory instead), since this context is only ever used
+         * below for read-only legal-action generation/validation (never
+         * applyAction/resumeAndCapture), which doesn't mutate the
+         * shallow-aliased nested state reconstructGameStateForValidation
+         * shares with handlerData - and handlerData is read again below,
+         * so that aliasing has to stay untouched.
+         */
         const state = this.gameAdapterConfig.reconstructGameStateForValidation(handlerData);
-        const ctx = new GameContext(state, this.gameAdapterConfig);
+        const ctx = new GameContext(state, this.gameAdapterConfig, true);
         const legalActions = this.legalActionsGenerator.generateLegalActions(ctx, expectedResponseTypes);
 
         if (legalActions.length === 0) {
@@ -40,12 +48,21 @@ export class EnhancedRandomDecisionStrategy<
             handlerData,
             expectedResponseTypes,
             legalActions,
+            ctx.controllers,
         );
 
         if (immediateWinningAction) {
             return immediateWinningAction;
         }
 
-        return this.randomStrategy.getAction(handlerData, expectedResponseTypes);
+        /*
+         * Pick directly from the legalActions already computed above,
+         * instead of delegating to RandomDecisionStrategy.getAction()
+         * (handlerData, expectedResponseTypes) - which would redundantly
+         * reconstruct game state, build a second driver, and recompute the
+         * exact same legal actions from scratch just to make the same kind
+         * of choice selectRandomAction makes on its own.
+         */
+        return selectRandomAction(legalActions, this.gameAdapterConfig);
     }
 }

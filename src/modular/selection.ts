@@ -36,10 +36,14 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
         let currentNode = root;
         let currentGameState = currentState;
         let latestResponseTypes = expectedResponseTypes;
+        // currentState (the first iteration's state) comes from the caller
+        // and isn't provably exclusively ours; every later currentGameState
+        // is this loop's own resumeAndCapture() output, read by nothing else.
+        let ownsCurrentGameState = false;
 
         for (;;) {
             // One GameContext covers state inspection, validation, and waiting-player extraction
-            const ctx = new GameContext(currentGameState, this.gameAdapterConfig);
+            const ctx = new GameContext(currentGameState, this.gameAdapterConfig, ownsCurrentGameState);
 
             if (ctx.isEnded()) {
                 return { node: currentNode, state: currentGameState, expectedResponseTypes: [] };
@@ -70,6 +74,7 @@ export class ISMCTSSelection<ResponseMessage extends Message, Controllers extend
             const { newState: newGameState, capturedResponseTypes } = ctx.resumeAndCapture(selectedChild.lastAction);
 
             currentGameState = newGameState;
+            ownsCurrentGameState = true;
             latestResponseTypes = capturedResponseTypes as readonly (ResponseMessage['type'])[];
             currentNode = selectedChild;
         }

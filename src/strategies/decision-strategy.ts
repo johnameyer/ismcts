@@ -3,16 +3,16 @@ import { ControllerHandlerState, IndexedControllers, Message } from '@cards-ts/c
 /**
  * Generic Decision Strategy Interface
  * Generic over ResponseMessage type to work with any game.
- * 
+ *
  * Any AI strategy (ISMCTS, Random, Capture, etc.) implements this interface.
  * Strategies are completely game-agnostic - they work with abstract HandlerData
  * and generic response type strings.
- * 
+ *
  * The strategy's job:
  * - Analyze the game state (provided as opaque HandlerData)
  * - Choose an action from the expectedResponseTypes
  * - Return a game-specific ResponseMessage
- * 
+ *
  * The strategy does NOT:
  * - Know which game is being played
  * - Know the structure of ResponseMessage (game-specific handlers wrap responses)

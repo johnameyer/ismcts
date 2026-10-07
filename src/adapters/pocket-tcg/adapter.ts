@@ -1,5 +1,7 @@
 import { CardRepository } from '@cards-ts/pocket-tcg/dist/repository/card-repository.js';
 import { ResponseMessage } from '@cards-ts/pocket-tcg/dist/messages/response-message.js';
+import { AttackDamageResolver } from '@cards-ts/pocket-tcg/dist/effects/attack-damage-resolver.js';
+import { getCurrentInstanceId } from '@cards-ts/pocket-tcg/dist/utils/field-card-utils.js';
 import { HandlerData } from '@cards-ts/pocket-tcg/dist/game-handler.js';
 import { Controllers } from '@cards-ts/pocket-tcg/dist/controllers/controllers.js';
 import { ControllerState } from '@cards-ts/core';
@@ -34,9 +36,11 @@ const COIN_FLIP_AMOUNT_TYPE = 'coin-flip';
  * @returns Complete GameAdapterConfig ready to pass to ISMCTSModular
  */
 export function createPocketTCGAdapterConfig(cardRepository: CardRepository): GameAdapterConfig<ResponseMessage, Controllers> {
+    const { driverFactory, rawDriverFactory } = createPocketTCGDriverFactory(cardRepository);
     const config: GameAdapterConfig<ResponseMessage, Controllers> = {
         actionsGenerator: new PocketTCGActionsGenerator(cardRepository),
-        driverFactory: createPocketTCGDriverFactory(cardRepository),
+        driverFactory,
+        rawDriverFactory,
         isRoundEnded: (gameState) => isGameEnded(gameState),
         getRoundReward: (gameState, playerIndex) => getRewardForPlayer(gameState, playerIndex),
         getTimeoutReward,
@@ -96,13 +100,14 @@ export function createPocketTCGAdapterConfig(cardRepository: CardRepository): Ga
             return 1.0;
         },
 
-        getImmediateWinningAction: (handlerData, expectedResponseTypes, legalActions) => {
+        getImmediateWinningAction: (handlerData, expectedResponseTypes, legalActions, controllers) => {
             return findGuaranteedImmediateWinningAction(
                 handlerData,
                 expectedResponseTypes,
                 legalActions,
                 config,
                 cardRepository,
+                controllers,
             );
         },
 
@@ -145,6 +150,7 @@ function findGuaranteedImmediateWinningAction(
     legalActions: ResponseMessage[],
     config: GameAdapterConfig<ResponseMessage, Controllers>,
     cardRepository: CardRepository,
+    controllers: Controllers,
 ): ResponseMessage | null {
     if (!expectedResponseTypes.includes('attack-response')) {
         return null;
@@ -154,7 +160,7 @@ function findGuaranteedImmediateWinningAction(
     const activeCreature = handlerData.field.creatures[currentPlayer][0];
 
     for (const action of legalActions) {
-        if (!isGuaranteedWinningAttack(action, activeCreature, cardRepository, handlerData)) {
+        if (!isGuaranteedWinningAttack(action, activeCreature, cardRepository, handlerData, controllers, currentPlayer)) {
             continue;
         }
 
@@ -180,6 +186,8 @@ function isGuaranteedWinningAttack(
     activeCreature: HandlerData['field']['creatures'][number][number],
     cardRepository: CardRepository,
     handlerData: HandlerData,
+    controllers: Controllers,
+    currentPlayer: number,
 ): action is AttackResponseMessage {
     if (!(action instanceof AttackResponseMessage)) {
         return false;
@@ -203,8 +211,53 @@ function isGuaranteedWinningAttack(
         return false;
     }
 
+    if (!isPossiblyLethalAttack(activeCreature, controllers, currentPlayer, attackIndex)) {
+        return false;
+    }
+
     // If attack resolution requires follow-up target/card selections, it is not immediate.
     return !handlerData.turnState.pendingSelection;
+}
+
+/*
+ * Cheap pre-check using the REAL damage-resolution logic
+ * (AttackDamageResolver.resolveDamage - the same function the engine uses
+ * to actually apply attack damage, accounting for weakness and any active
+ * damage-boost/reduction/prevention effects) against controllers the
+ * caller already built, instead of constructing a separate driver just to
+ * ask this. Only attacks that resolve to at least the target's remaining
+ * HP proceed to the expensive applyActionAndResume simulation, which still
+ * separately confirms the knockout actually ends the round (accounts for
+ * remaining bench/points - this check only answers "would this knock out
+ * the active creature").
+ *
+ * This runs once per legal attack on every decision point of every ISMCTS
+ * rollout (up to maxMoves=50 per rollout, times hundreds of iterations per
+ * move), so filtering out attacks that don't even deal lethal damage -
+ * without paying for a second driver construction - is a large win.
+ */
+function isPossiblyLethalAttack(
+    activeCreature: HandlerData['field']['creatures'][number][number],
+    controllers: Controllers,
+    currentPlayer: number,
+    attackIndex: number,
+): boolean {
+    const opponentIndex = 1 - currentPlayer;
+    const targetCreature = controllers.field.getCardByPosition(opponentIndex, 0);
+    if (!targetCreature) {
+        // Can't determine the target - let the full check decide.
+        return true;
+    }
+
+    const targetData = controllers.cardRepository.getCreature(targetCreature.templateId);
+    const remainingHp = targetData.maxHp - targetCreature.damageTaken;
+
+    const attackerInstanceId = getCurrentInstanceId(activeCreature);
+    const damage = AttackDamageResolver.resolveDamage(controllers, currentPlayer, attackIndex, attackerInstanceId);
+
+    // Damage couldn't be resolved (e.g. attacker/attack not found) - don't
+    // rule it out, let the full check decide.
+    return damage === undefined || damage >= remainingHp;
 }
 
 function containsCoinFlipOutcome(value: unknown): boolean {
