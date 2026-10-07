@@ -94,7 +94,9 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
                 this.logIterationMilestone(i + 1, actions, root.children.length, currentLegalActions.length);
             }
         }
-        
+
+        config.onTreeComplete?.(root);
+
         const actions = this.getAllActionsWithScores(root);
         
         return actions.sort((a, b) => b.score - a.score);
@@ -124,7 +126,9 @@ export class ISMCTS<ResponseMessage extends Message, Controllers extends Indexed
                 this.logIterationMilestone(i + 1, actions, root.children.length, expectedResponseTypes.length);
             }
         }
-        
+
+        config.onTreeComplete?.(root);
+
         const actions = this.getAllActionsWithScores(root);
         
         return actions.sort((a, b) => b.score - a.score);

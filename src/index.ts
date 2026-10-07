@@ -6,3 +6,5 @@
 export * from './strategies/index.js';
 export * from './adapters/pocket-tcg/index.js';
 export * from './modular/index.js';
+export * from './ismcts-node.js';
+export * from './utils/serialize-tree.js';
