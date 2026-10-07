@@ -17,7 +17,7 @@
   "dependencies": {
     "@cards-ts/core": "github:johnameyer/cards-ts#feature/get-validation-error&path:libs/core",
     "@cards-ts/euchre": "^0.8.3",
-    "@cards-ts/pocket-tcg": "github:johnameyer/pocket-tcg"
+    "@cards-ts/pocket-tcg": "github:johnameyer/pocket-tcg#b474560fd22f413847d16e0e1be1fe5c0b8b4099"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

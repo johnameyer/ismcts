@@ -15,7 +15,7 @@ importers:
         specifier: ^0.8.3
         version: 0.8.3(@types/node@22.19.17)
       '@cards-ts/pocket-tcg':
-        specifier: github:johnameyer/pocket-tcg
+        specifier: github:johnameyer/pocket-tcg#b474560fd22f413847d16e0e1be1fe5c0b8b4099
         version: https://codeload.github.com/johnameyer/pocket-tcg/tar.gz/b474560fd22f413847d16e0e1be1fe5c0b8b4099(@types/node@22.19.17)
     devDependencies:
       '@eslint/js':
